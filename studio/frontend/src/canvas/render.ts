@@ -16,7 +16,8 @@ import type { PatternSource } from "./draw.ts";
 /** The store's rendered maps as the painter wants them. */
 export function patternsOf(ps: Map<string, TexturePattern>): Map<string, PatternSource> {
 	const out = new Map<string, PatternSource>();
-	for (const [name, p] of ps) out.set(name, { canvas: p.canvas, mode: p.mode, sx: p.sx, sy: p.sy });
+	// the pattern itself, not a copy of its fields: reading `canvas` renders it, and only a shape that wears it should
+	for (const [name, p] of ps) out.set(name, p);
 	return out;
 }
 
@@ -78,22 +79,45 @@ export function render(ctx: CanvasRenderingContext2D, W: number, H: number, dpr:
 		}
 		ctx.setLineDash([]);
 		world();
-		if (!clip) {
+		{
 			// hover and selection, through each part's pose
 			const hov = ed.hover.value;
 			const hs = shapeAt(hov);
-			if (hov && hs && !ed.sel.value.some((r) => r.p === hov.p && r.s === hov.s)) {
+			const ps = parts();
+			if (clip) {
+				// posing a key: what a grab would take is a whole part, and the part being posed is drawn round
+				const outlinePart = (p: number, css: string, w: number) => {
+					const xf = partXf(p, W);
+					for (const sh of ps[p] ? shapesIn(ps[p]) : []) outlineShape(ctx, sh, css, w, zoom, (q) => xfApply(xf, q), xfScale(xf));
+				};
+				if (hov && hov.p !== ed.curPart.value) outlinePart(hov.p, HOVER, LW);
+				if (ed.partPicked.value) outlinePart(ed.curPart.value, ACCENT, 1.5 * LW);
+				// the joints: every drawn part's pivot, each one a grip
+				screen();
+				ctx.strokeStyle = C.accentSoft;
+				ctx.fillStyle = C.handleFill;
+				ctx.lineWidth = LW;
+				for (const sp of fr ?? []) {
+					const o = worldPivot(sp.part, W);
+					if (!o) continue;
+					const s = toS(o);
+					ctx.beginPath();
+					ctx.arc(s[0], s[1], 4, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.stroke();
+				}
+				world();
+			} else if (hov && hs && !ed.sel.value.some((r) => r.p === hov.p && r.s === hov.s)) {
 				const xf = partXf(hov.p, W);
 				outlineShape(ctx, hs, HOVER, LW, zoom, (q) => xfApply(xf, q), xfScale(xf));
 			}
-			const ps = parts();
 			for (const r of ed.sel.value) {
 				const sh = ps[r.p] ? shapesIn(ps[r.p])[r.s] : undefined;
 				if (!sh) continue;
 				const xf = partXf(r.p, W);
 				outlineShape(ctx, sh, ACCENT, 1.5 * LW, zoom, (q) => xfApply(xf, q), xfScale(xf));
 			}
-			if (selShape()) {
+			if (selShape() && !clip) {
 				const hs = worldHandles();
 				const posed = selShapePosed() ?? selShape();
 				// a path's tangents (1.7): a line from the vertex to each handle, the handle a small ring
@@ -121,7 +145,7 @@ export function render(ctx: CanvasRenderingContext2D, W: number, H: number, dpr:
 				} else drawHandles(ctx, hs.map(toS), screen, world, C.handleFill, ACCENT, LW);
 			}
 			const grips = scaleGrips();
-			if (grips.length && ed.sel.value.length) {
+			if (grips.length && ed.sel.value.length && !clip) {
 				screen();
 				const a = toS(grips[0].at);
 				const c = toS(grips[2].at);

@@ -37,6 +37,7 @@ import {
 	setPose,
 	resetPose,
 	toggleMembership,
+	keyHere,
 	addToken,
 	deleteToken,
 	renameToken,
@@ -242,11 +243,17 @@ function ShapeSection({ sh, collision }: { sh: Shape; collision: boolean }) {
 function PoseSection() {
 	const st = curState();
 	const part = curPart();
-	if (!part || !st) return null;
+	const clip = curClip();
+	if (!part || (!st && !clip)) return null;
 	const sp = poseOfCur();
 	const at = sp ? (sp.offset ?? part.pivot ?? [0, 0]) : [0, 0];
+	const k = keyHere();
+	const key = clip?.keys[k];
+	// in a clip: the key under the playhead, or (between keys) the frame, which a change keys
+	const where = !clip ? `the state "${st!.name}"` : key ? `the key at ${key.t}s of "${clip.name}"${key.state !== undefined ? `, now "${key.state}"; a change gives the key its own pose` : ""}` : `"${clip.name}" at ${ed.clipTime.value.toFixed(2)}s; a change adds a key here`;
+	const tail = !clip ? st!.name : key ? `${key.t}s` : "new key";
 	return (
-		<InspectorSection title="Pose" hint={`How "${part.name}" sits in the state "${st.name}"`} tail={st.name}>
+		<InspectorSection title="Pose" hint={`How "${part.name}" sits in ${where}`} tail={tail}>
 			{sp ? (
 				<>
 					<Property label="Offset" layout="pair" title="Where the pivot lands">
@@ -260,9 +267,11 @@ function PoseSection() {
 					</Property>
 					<div class="insp-actions">
 						<Button onClick={() => resetPose(sp)}>Reset</Button>
-						<Button onClick={() => toggleMembership(ed.curState.value, part.name)}>Leave out of this state</Button>
+						{!clip && <Button onClick={() => toggleMembership(ed.curState.value, part.name)}>Leave out of this state</Button>}
 					</div>
 				</>
+			) : clip ? (
+				<div class="insp-hint flush">Not drawn at this key</div>
 			) : (
 				<>
 					<div class="insp-hint flush">Not drawn in this state</div>
@@ -465,7 +474,7 @@ function PartSection() {
 					</div>
 				)}
 			</InspectorSection>
-			{!preview && <PoseSection />}
+			<PoseSection />
 			<AnchorSection k={k} />
 			<ChainSection k={k} />
 		</>
@@ -483,7 +492,7 @@ function ClipSection() {
 			<Property label="Keys">
 				<span class="ur-prop-val ur-mono">{c.keys.length}</span>
 			</Property>
-			<div class="insp-hint flush">Keys name states · to change what a key looks like, pose that state</div>
+			<div class="insp-hint flush">Pick a key and pose the rig on the canvas: drag a part to turn it, a joint to move it, a ring to reach. A key naming a state takes its own copy on the first change; between keys, a change adds a key.</div>
 		</InspectorSection>
 	);
 }

@@ -88,7 +88,10 @@ across them.
 - **Every view is a state.** There is no separate drawing mode: shapes
   are edited inside whichever state is on the canvas, through its pose,
   and the part is placed and turned by its own grips. A new state copies
-  the current one. A clip is a *preview*: nothing edits there.
+  the current one. A clip poses its keys: the key under the playhead
+  is the pose the rig's grips change (a key naming a state takes its
+  own copy first; between keys a change makes a key), and shapes do
+  not edit there.
 - **The canvas is the tool**: hover tells you what a click would do, the
   status bar says what mode you are in.
 
@@ -276,7 +279,7 @@ nodes.
 - **Right-click is the short list**, drawn by the platform: the four
   things you do most to that thing, and its delete (never a red ×). The
   long list is `Cmd K`.
-- **Modes are visible.** A state, a clip preview, the collision lens:
+- **Modes are visible.** A state, a clip's key, the collision lens:
   the status bar names which, the path bar dims what does not apply.
 - **Settings stay small.** Appearance, the welcome window and the setup
   checklist share one page (`Cmd ,`); everything else is a toggle where

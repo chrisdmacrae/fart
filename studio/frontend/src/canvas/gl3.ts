@@ -625,15 +625,15 @@ export function drawLayers(canvas: HTMLCanvasElement, layers: readonly SolidLaye
 			}
 		}
 	}
-	glStats.buffers = g.buffers.size;
-	// buffers nothing has drawn for a while (a file closed, a mesh reshaped) go back to the GPU
-	if (frame % 240 === 0) {
-		for (const [b, have] of g.buffers) {
-			if (frame - have.used > 240) {
-				gl.deleteBuffer(have.buf);
-				g.buffers.delete(b);
-			}
+	// buffers this frame did not draw (a file closed, a mesh reshaped) go back to the GPU now: a
+	// skinned or morphing part (1.6, 1.9) makes new triangles every frame of a clip, and keeping
+	// even a few seconds of them runs a dense mesh to gigabytes, at which WebKit kills the page
+	for (const [b, have] of g.buffers) {
+		if (have.used !== frame) {
+			gl.deleteBuffer(have.buf);
+			g.buffers.delete(b);
 		}
 	}
+	glStats.buffers = g.buffers.size;
 	return true;
 }

@@ -239,7 +239,8 @@ is paint order, so a lid may layer differently open and closed.
 
 ## Clips: states in time
 
-A clip is a list of keys, each at a time in seconds, each naming a state.
+A clip is a list of keys, each at a time in seconds, each naming a state
+or carrying a pose of its own.
 The **+** beside Clips in the outline makes one with a single key
 at 0. Select a clip and its transport appears in the path bar and the
 timeline under the canvas: **▶** (or Space) plays, the ruler
@@ -247,9 +248,20 @@ scrubs, **+ key** drops a key at the playhead, and a key drags along the
 ruler. The selected key's state, its ease (how time approaches it), and
 its time sit to the right. Between keys the parts tween: offset and size
 linearly, turns the short way round; which parts show, and their paint
-order, switch at the key. **loop** wraps time at the last key. Keys name
-states, so to change what a key looks like you pose that state; a clip
-never carries its own pose.
+order, switch at the key. **loop** wraps time at the last key.
+
+**Posing a key.** Pick a key (click it on the ruler) and the canvas
+poses that key: the rig shows its joints, a drag on a part turns it
+about its pivot (a part with no parent moves; ⌥ moves any part, ⇧ snaps
+the turn to 15°), a drag on a joint or the pivot moves it, the lever
+turns it, an IK ring reaches, and the inspector's Pose fields edit it;
+in 3D the handles move, turn and size the picked part too. A key that
+names a state takes a copy of it on the first change and keeps its
+**own pose** from then on: the state, and every other key naming it,
+stay as they were. With the playhead between keys, a change makes a
+key there from what is on the canvas. Right-click a key (in 3D, the
+state button beside its menu) to **save its pose as a state** the key
+then names. Shapes are not edited in a clip: pick a state for that.
 
 ## Mirror and reuse
 
@@ -462,7 +474,9 @@ the same four regions with the model turned under a **view**.
   part, the lever turns it about the view axis, and the inspector has
   the turn about x, y and z in degrees. A turn about the view axis is
   what survives projection exactly; the rest bakes.
-- **Clips preview** with a scrubber under the canvas; keys name states.
+- **Clips** play with a scrubber under the canvas; a key picked poses
+  on the canvas the way 2D does (a part turns, a joint moves, the
+  handles move, turn and size the picked part), into the key's own pose.
 - **Project…** writes the 2D files a game draws, beside the model:
   `pistol-left.fart`, `pistol-top.fart`, ordinary files this editor
   opens: faces that face the viewer as shaded polys, and every pose

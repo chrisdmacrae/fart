@@ -105,11 +105,40 @@ export async function loadPatterns(doc: Doc | Doc3, rel: string): Promise<Map<st
 	const dir = dirname(rel);
 	const read = (r: string) => shell.readFile(root, joinRel(dir, r));
 	const resolved = await resolveTextures(doc, read, (text) => parseDoc(text).doc);
-	for (const [name, res] of resolved) {
-		const r = renderMapCanvas(res.texture, res);
-		out.set(name, { texture: res.texture, resolved: res, canvas: r?.canvas ?? null, sx: r?.sx ?? MAP_PX, sy: r?.sy ?? MAP_PX, mode: res.maps.color?.map.mode, normal: renderNormalCanvas(res.texture, res), rev: ++revCounter });
-	}
+	for (const [name, res] of resolved) out.set(name, lazyPattern(res));
 	return out;
+}
+
+/**
+ * A texture's pattern, its canvases rendered the first time something
+ * draws them: a file may carry thousands of textures (a wardrobe) and
+ * wear a few, and every map rendered up front is 256 KB or more of
+ * canvas apiece, enough of them to have WebKit kill the page.
+ */
+function lazyPattern(res: ResolvedTexture): TexturePattern {
+	const t = res.texture;
+	const m = res.maps.color;
+	// the sizes renderMapCanvas will use, known without rendering
+	const sx = m ? pow2(t.cell[0] * MAP_PX) / t.cell[0] : MAP_PX;
+	const sy = m ? pow2(t.cell[1] * MAP_PX) / t.cell[1] : MAP_PX;
+	let canvas: HTMLCanvasElement | null | undefined;
+	let normal: HTMLCanvasElement | null | undefined;
+	return {
+		texture: t,
+		resolved: res,
+		get canvas() {
+			if (canvas === undefined) canvas = renderMapCanvas(t, res)?.canvas ?? null;
+			return canvas;
+		},
+		get normal() {
+			if (normal === undefined) normal = renderNormalCanvas(t, res);
+			return normal;
+		},
+		sx,
+		sy,
+		mode: m?.map.mode,
+		rev: ++revCounter,
+	};
 }
 
 /** The unresolved refs across a set of patterns, for the issues list. */

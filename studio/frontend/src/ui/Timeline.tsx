@@ -1,12 +1,13 @@
 // The clip timeline under the canvas: a ruler with the keys on it, a
 // playhead to scrub, play and loop, and the selected key's state, ease and
-// time. Keys name states; posing happens in the state.
+// time. Picking a key puts the playhead on it, and the canvas then poses
+// that key (state/editor.ts editPose).
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { clipDuration, type Curve, type Ease } from "@fastart/core";
 import { menuAt } from "../state/menu.ts";
 import { Button, NumberField, Select, TextField, cx } from "./ur.tsx";
-import { ed, curClip, states, addKey, deleteKey, setKeyTime, setKeyState, setKeyEase, setKeyCurve, setKeyEvents, seek, endGesture } from "../state/editor.ts";
+import { ed, curClip, states, addKey, deleteKey, setKeyTime, setKeyState, setKeyEase, setKeyCurve, setKeyEvents, keyToState, freshName, seek, endGesture } from "../state/editor.ts";
 
 const EASES: Ease[] = ["linear", "in", "out", "in-out", "step"];
 /** Curves worth a name (1.2); "custom" keeps whatever the numbers say. */
@@ -142,12 +143,16 @@ export function Timeline() {
 					<span
 						class={cx("ed-tl-key", i === ki && "selected", !!k.events?.length && "ev")}
 						style={{ left: left(k.t) }}
-						title={`${k.state ?? "inline"} @ ${k.t}s${k.events?.length ? ` · ${k.events.join(", ")}` : ""}`}
+						title={`${k.state ?? "own pose"} @ ${k.t}s${k.events?.length ? ` · ${k.events.join(", ")}` : ""}`}
 						tabIndex={0}
 						onPointerDown={(e) => dragKey(i, e)}
 						onContextMenu={(e) => {
 							ed.curKey.value = i;
-							menuAt(e, [{ label: "Delete key", danger: true, disabled: !canDelete, run: () => deleteKey(i) }]);
+							ed.clipTime.value = k.t;
+							menuAt(e, [
+								{ label: "Save pose as a state", disabled: k.state !== undefined, run: () => keyToState(i, freshName(`${clip.name} ${k.t}s`, states().map((s) => s.name))) },
+								{ label: "Delete key", danger: true, sep: true, disabled: !canDelete, run: () => deleteKey(i) },
+							]);
 						}}
 						onKeyDown={(e) => {
 							if ((e.key === "Backspace" || e.key === "Delete") && canDelete) {
@@ -165,7 +170,7 @@ export function Timeline() {
 			</Button>
 			{key && (
 				<>
-					<Select value={key.state ?? ""} width={120} title="The state this key shows" options={[...(key.state === undefined ? [{ value: "", label: "Inline pose" }] : []), ...states().map((s) => ({ value: s.name, label: s.name }))]} onChange={(v) => setKeyState(ki, v)} />
+					<Select value={key.state ?? ""} width={120} title="The state this key shows" options={[...(key.state === undefined ? [{ value: "", label: "Own pose" }] : []), ...states().map((s) => ({ value: s.name, label: s.name }))]} onChange={(v) => setKeyState(ki, v)} />
 					<Select<Ease> value={key.ease ?? "linear"} width={84} title="How time approaches this key" disabled={!!key.curve} options={EASES} onChange={(v) => setKeyEase(ki, v)} />
 					<Select
 						value={curveName(key.curve)}

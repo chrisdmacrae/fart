@@ -39,6 +39,9 @@ import {
 	sourceOf,
 	sampleTargets,
 	solveTargets,
+	keyPoses,
+	keyTargets,
+	type ClipKey,
 	type Target,
 	type Curve,
 	type Anchor,
@@ -129,6 +132,7 @@ let mergeKey: string | null = null;
 
 const FLUSH_MS = 350;
 const UNDO_MAX = 200;
+const UNDO_CHARS = 128e6;
 
 // ------------------------------------------------------------- access
 
@@ -169,18 +173,80 @@ export function curClip(): Clip | undefined {
 /** The pose list the canvas draws: a clip frame, else the current state's parts. */
 export function frame(): StatePart[] | undefined {
 	const c = curClip();
-	if (c) {
-		const d = doc();
-		const poses = sampleClip(d, c, ed.clipTime.value);
-		const targets = sampleTargets(d, c, ed.clipTime.value);
-		if (targets.length) solveTargets(d, poses, targets);
-		return poses;
-	}
+	if (c) return sampleFrame(doc(), c, ed.clipTime.value);
 	return curState()?.parts;
+}
+function sampleFrame(d: Doc, c: Clip, t: number): StatePart[] {
+	const poses = sampleClip(d, c, t);
+	const targets = sampleTargets(d, c, t);
+	if (targets.length) solveTargets(d, poses, targets);
+	return poses;
+}
+
+/** What a pose gesture works on: a state, or a clip key (its own parts, inline). */
+export interface Pose {
+	parts: StatePart[];
+	targets?: Target[];
+}
+
+/** The key the playhead sits on in the clip on the canvas; -1 between keys (or no clip). */
+export function keyHere(): number {
+	const c = curClip();
+	if (!c) return -1;
+	const t = ed.clipTime.value;
+	const k = ed.curKey.value;
+	if (c.keys[k] && Math.abs(c.keys[k].t - t) < 1e-6) return k;
+	return c.keys.findIndex((key) => Math.abs(key.t - t) < 1e-6);
+}
+
+/**
+ * The pose the canvas poses, for reading: the current state; in a clip the
+ * key under the playhead (its own parts, or the state it names); between
+ * keys, the frame (a gesture there makes a key).
+ */
+export function pose(): Pose | undefined {
+	const c = curClip();
+	if (!c) return curState();
+	const d = doc();
+	const k = keyHere();
+	if (k >= 0) return { parts: keyPoses(d, c.keys[k]), targets: keyTargets(d, c.keys[k]) };
+	return { parts: frame() ?? [], targets: sampleTargets(d, c, ed.clipTime.value) };
+}
+
+/**
+ * The pose a gesture changes, called inside a mutate. In a clip it is the
+ * key under the playhead, made its own: a key naming a state takes a copy
+ * of it inline (the state, and every other key naming it, stay as they
+ * are), and between keys a key is made at the playhead from the frame.
+ */
+export function editPose(d: Doc): Pose | undefined {
+	const c = d.clips?.[ed.curClip.value];
+	if (!c) return d.states?.[ed.curState.value];
+	let k = keyHere();
+	const t = Math.round(ed.clipTime.value * 100) / 100;
+	// a playhead a hair from a key (the time rounds onto it) poses that key
+	if (k < 0) k = c.keys.findIndex((key) => Math.abs(key.t - t) < 1e-6);
+	if (k < 0) {
+		const key: ClipKey = { t, parts: sampleFrame(d, c, ed.clipTime.value) };
+		const tg = sampleTargets(d, c, ed.clipTime.value);
+		if (tg.length) key.targets = tg;
+		c.keys.push(key);
+		k = sortKeys(c, key);
+	}
+	if (k >= 0 && Math.abs(c.keys[k].t - ed.clipTime.value) > 1e-6) ed.clipTime.value = c.keys[k].t;
+	ed.curKey.value = k;
+	const key = c.keys[k];
+	if (!key.parts) {
+		key.parts = structuredClone(keyPoses(d, key));
+		const tg = keyTargets(d, key);
+		if (tg.length && !key.targets) key.targets = structuredClone(tg);
+		delete key.state;
+	}
+	return key as Pose;
 }
 
 export type Mode = "state" | "clip" | "collide";
-/** What the canvas is doing: editing a state, previewing a clip, or the collision lens. */
+/** What the canvas is doing: editing a state, posing a clip's keys, or the collision lens. */
 export function mode(): Mode {
 	if (ed.collide.value) return "collide";
 	if (curClip()) return "clip";
@@ -217,11 +283,12 @@ export function selShape(): Shape | undefined {
 export function colShape(): Shape | undefined {
 	return doc().collision?.[ed.colSel.value];
 }
+/** The current part's entry in the pose being posed (see pose()); to change it, setPose. */
 export function poseOfCur(): StatePart | undefined {
-	const st = curState();
+	const pz = pose();
 	const p = curPart();
-	if (!st || !p) return undefined;
-	return st.parts.find((sp) => sp.part === p.name);
+	if (!pz || !p) return undefined;
+	return pz.parts.find((sp) => sp.part === p.name);
 }
 export function rgbaOf(name: string): Rgba {
 	const t = ed.tokens.value;
@@ -287,7 +354,9 @@ function snapshot(): Snap {
 function touch() {
 	batch(() => {
 		ed.rev.value++;
-		markDirty();
+		// edited: the exact answer (back at the checkpoint after an undo?) waits for the flush, which has
+		// the text in hand anyway; working it out here is the whole document as text on every pointer move
+		ed.dirty.value = true;
 		ed.tokens.value = [...ed.shared.value, ...palette()];
 		ed.canUndo.value = undoStack.length > 0;
 		ed.canRedo.value = redoStack.length > 0;
@@ -298,6 +367,10 @@ function touch() {
 export function pushUndo() {
 	undoStack.push(snapshot());
 	if (undoStack.length > UNDO_MAX) undoStack.shift();
+	// a step is the whole document as text: a big file keeps fewer of them, not hundreds of megabytes
+	let size = 0;
+	for (const u of undoStack) size += u.doc.length;
+	while (size > UNDO_CHARS && undoStack.length > 1) size -= undoStack.shift()!.doc.length;
 	redoStack = [];
 }
 
@@ -306,15 +379,16 @@ export function pushUndo() {
  * the first change in a gesture snapshots for undo, the rest ride along,
  * so one drag is one undo step. endGesture() closes it.
  */
-export function mutate(fn: (d: Doc) => void, merge?: string) {
+export function mutate(fn: (d: Doc) => void, merge?: string, posesOnly = false) {
 	if (!merge || mergeKey !== merge) {
 		pushUndo();
 		mergeKey = merge ?? null;
 	}
-	const texBefore = JSON.stringify(ed.doc.value.textures ?? []);
+	// `posesOnly`: the change touches poses and nothing else (a drag on the rig), so the textures need no look
+	const texBefore = posesOnly ? "" : JSON.stringify(ed.doc.value.textures ?? []);
 	fn(doc());
 	touch();
-	if (JSON.stringify(ed.doc.value.textures ?? []) !== texBefore) void reloadPatterns();
+	if (!posesOnly && JSON.stringify(ed.doc.value.textures ?? []) !== texBefore) void reloadPatterns();
 }
 
 export function endGesture() {
@@ -404,6 +478,7 @@ export async function flushNow() {
 	const rel = ed.path.value;
 	if (!rel) return;
 	const snap = docText();
+	ed.dirty.value = snap !== checkpoint;
 	if (snap === lastFlush) return;
 	if (asking) return; // the conflict dialog decides
 	// another tool may have written the file since we last synced: never write over that unseen
@@ -880,7 +955,7 @@ export function selShapePosed(): Shape | undefined {
 	const r = primary();
 	const p = r ? parts()[r.p] : undefined;
 	if (!r || !p) return undefined;
-	return shapesOfPosed(doc(), p, curState()?.parts.find((sp) => sp.part === p.name))[r.s];
+	return shapesOfPosed(doc(), p, frame()?.find((sp) => sp.part === p.name))[r.s];
 }
 
 /** How many shapes the current state reshapes on a part. */
@@ -1532,6 +1607,22 @@ export function setKeyEvents(i: number, events: string[]) {
 	});
 }
 
+/** A new state holding a key's pose; the key then names it. */
+export function keyToState(i: number, name: string) {
+	const c = curClip();
+	const key = c?.keys[i];
+	if (!key || states().some((s) => s.name === name)) return;
+	mutate((d) => {
+		const st: State = { name, parts: structuredClone(keyPoses(d, key)) };
+		const tg = keyTargets(d, key);
+		if (tg.length) st.targets = structuredClone(tg);
+		(d.states ??= []).push(st);
+		key.state = name;
+		delete key.parts;
+		delete key.targets;
+	});
+}
+
 /** Seek the preview; the key under the playhead becomes current. */
 export function seek(t: number) {
 	const c = curClip();
@@ -1565,26 +1656,26 @@ export function renameChain(k: number, name: string) {
 	});
 }
 
-/** The current state's pinned point for a chain (1.2), if any. */
+/** The pinned point for a chain (1.2) in the pose being posed, if any. */
 export function targetOf(chain: string): Target | undefined {
-	return curState()?.targets?.find((t) => t.chain === chain);
+	return pose()?.targets?.find((t) => t.chain === chain);
 }
 
 /** Let a chain go: its rotations stay where they are, the pin is gone. */
 export function clearTarget(chain: string) {
-	const st = curState();
-	if (!st?.targets) return;
-	mutate(() => {
-		st.targets = st.targets!.filter((t) => t.chain !== chain);
-		if (!st.targets.length) delete st.targets;
+	if (!targetOf(chain)) return;
+	mutate((d) => {
+		const pz = editPose(d);
+		if (!pz?.targets) return;
+		pz.targets = pz.targets.filter((t) => t.chain !== chain);
+		if (!pz.targets.length) delete pz.targets;
 	});
 }
 
-/** After a pose changed: every pinned chain in the state reaches again. Call inside a mutate. */
-export function settleTargets(d: Doc = doc()) {
-	const st = curState();
-	if (!st?.targets?.length) return;
-	solveTargets(d, st.parts, st.targets);
+/** After a pose changed: every pinned chain in it reaches again. Call inside a mutate. */
+export function settleTargets(d: Doc = doc(), pz: Pose | undefined = editPose(d)) {
+	if (!pz?.targets?.length) return;
+	solveTargets(d, pz.parts, pz.targets);
 }
 
 export function setChain(k: number, chain: string[], end: string) {
@@ -1607,33 +1698,45 @@ export function setChainBend(k: number, bend: 1 | -1 | undefined) {
  * while the rest of the pose changes. clearTarget lets go.
  */
 export function ikTo(c: Constraint, target: Vec2) {
-	const st = curState();
-	if (!st) return;
+	if (!pose()) return;
 	mutate((d) => {
-		solveChain(d, st.parts, c, target);
+		const pz = editPose(d);
+		if (!pz) return;
+		solveChain(d, pz.parts, c, target);
 		const at: Vec2 = [Math.round(target[0] * 100) / 100, Math.round(target[1] * 100) / 100];
-		const tg = (st.targets ??= []).find((t) => t.chain === c.name);
+		const tg = (pz.targets ??= []).find((t) => t.chain === c.name);
 		if (tg) tg.at = at;
-		else st.targets.push({ chain: c.name, at });
-	}, "ik");
+		else pz.targets.push({ chain: c.name, at });
+	}, "ik", true);
 }
 
+/**
+ * Change a part's entry in the pose being posed (see editPose): the
+ * current state's, or the clip key's under the playhead. `sp` names the
+ * part; the entry changed is the pose's own, found by that name.
+ */
 export function setPose(sp: StatePart, patch: Partial<StatePart>, merge?: string) {
 	mutate((d) => {
-		Object.assign(sp, patch);
-		if (sp.mirror === false) delete sp.mirror;
-		settleTargets(d);
-	}, merge);
+		const pz = editPose(d);
+		const e = pz?.parts.find((x) => x.part === sp.part);
+		if (!e) return;
+		Object.assign(e, patch);
+		if (e.mirror === false) delete e.mirror;
+		settleTargets(d, pz);
+	}, merge, true);
 }
 
 export function resetPose(sp: StatePart) {
 	const part = parts().find((p) => p.name === sp.part);
 	mutate((d) => {
-		sp.offset = part?.pivot ?? [0, 0];
-		delete sp.rotate;
-		delete sp.scale;
-		delete sp.mirror;
-		settleTargets(d);
+		const pz = editPose(d);
+		const e = pz?.parts.find((x) => x.part === sp.part);
+		if (!e) return;
+		e.offset = part?.pivot ?? [0, 0];
+		delete e.rotate;
+		delete e.scale;
+		delete e.mirror;
+		settleTargets(d, pz);
 	});
 }
 

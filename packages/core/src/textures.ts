@@ -51,10 +51,26 @@ export async function resolveTexture(texture: Texture, read: RefReader, parse: (
 	return out;
 }
 
-/** Every texture of a document, resolved. */
+/**
+ * Every texture of a document, resolved. A file many textures name (one
+ * drawing whose states are a whole wardrobe) is read and parsed once and
+ * its maps share the one document, so thousands of textures cost one
+ * drawing, not thousands of copies of it.
+ */
 export async function resolveTextures(doc: Doc | Doc3, read: RefReader, parse: (text: string) => Doc | null): Promise<Map<string, ResolvedTexture>> {
+	const texts = new Map<string, Promise<string | null>>();
+	const docs = new Map<string, Doc | null>();
+	const once: RefReader = (ref) => {
+		let got = texts.get(ref);
+		if (!got) texts.set(ref, (got = Promise.resolve(read(ref))));
+		return got;
+	};
+	const parseOnce = (text: string) => {
+		if (!docs.has(text)) docs.set(text, parse(text));
+		return docs.get(text)!;
+	};
 	const out = new Map<string, ResolvedTexture>();
-	for (const t of doc.textures ?? []) out.set(t.name, await resolveTexture(t, read, parse));
+	for (const t of doc.textures ?? []) out.set(t.name, await resolveTexture(t, once, parseOnce));
 	return out;
 }
 

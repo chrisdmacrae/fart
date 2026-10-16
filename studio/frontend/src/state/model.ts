@@ -12,6 +12,11 @@ import {
 	resolvePalettes,
 	bakeTris3,
 	sampleClip3,
+	keyPoses3,
+	keyTargets3,
+	sampleTargets3,
+	type ClipKey3,
+	type Target3,
 	projectDoc,
 	projectFrame,
 	pivotOf3,
@@ -231,11 +236,70 @@ export function frame(): StatePart3[] | undefined {
 	if (c) return sampleClip3(doc(), c, md.clipTime.value);
 	return curState()?.parts;
 }
+/** What a pose gesture works on: a state, or a clip key (its own parts, inline). */
+export interface Pose3 {
+	parts: StatePart3[];
+	targets?: Target3[];
+}
+/** The key the playhead sits on in the clip on the canvas; -1 between keys (or no clip). */
+export function keyHere(): number {
+	const c = curClip();
+	if (!c) return -1;
+	const t = md.clipTime.value;
+	const k = md.curKey.value;
+	if (c.keys[k] && Math.abs(c.keys[k].t - t) < 1e-6) return k;
+	return c.keys.findIndex((key) => Math.abs(key.t - t) < 1e-6);
+}
+/**
+ * The pose the canvas poses, for reading: the current state; in a clip the
+ * key under the playhead (its own parts, or the state it names); between
+ * keys, the frame (a gesture there makes a key).
+ */
+export function pose(): Pose3 | undefined {
+	const c = curClip();
+	if (!c) return curState();
+	const k = keyHere();
+	if (k >= 0) return { parts: keyPoses3(doc(), c.keys[k]), targets: keyTargets3(doc(), c.keys[k]) };
+	return { parts: frame() ?? [] };
+}
+/**
+ * The pose a gesture changes, called inside a mutate. In a clip it is the
+ * key under the playhead, made its own: a key naming a state takes a copy
+ * of it inline (the state, and every other key naming it, stay as they
+ * are), and between keys a key is made at the playhead from the frame.
+ */
+export function editPose(d: Doc3): Pose3 | undefined {
+	const c = d.clips?.[md.curClip.value];
+	if (!c) return d.states?.[md.curState.value];
+	let k = keyHere();
+	const t = Math.round(md.clipTime.value * 1000) / 1000;
+	// a playhead a hair from a key (the time rounds onto it) poses that key
+	if (k < 0) k = c.keys.findIndex((key) => Math.abs(key.t - t) < 1e-6);
+	if (k < 0) {
+		const key: ClipKey3 = { t, parts: sampleClip3(d, c, md.clipTime.value) };
+		const tg = sampleTargets3(d, c, md.clipTime.value);
+		if (tg.length) key.targets = tg;
+		k = c.keys.findIndex((x) => x.t > t);
+		if (k < 0) k = c.keys.length;
+		c.keys.splice(k, 0, key);
+	}
+	if (Math.abs(c.keys[k].t - md.clipTime.value) > 1e-6) md.clipTime.value = c.keys[k].t;
+	md.curKey.value = k;
+	const key = c.keys[k];
+	if (!key.parts) {
+		key.parts = structuredClone(keyPoses3(d, key));
+		const tg = keyTargets3(d, key);
+		if (tg.length && !key.targets) key.targets = structuredClone(tg);
+		delete key.state;
+	}
+	return key as Pose3;
+}
+/** The current part's entry in the pose being posed (see pose()); to change it, setPose. */
 export function poseOfCur(): StatePart3 | undefined {
 	const p = curPart();
-	const st = curState();
-	if (!p || !st) return undefined;
-	return st.parts.find((sp) => sp.part === p.name);
+	const pz = pose();
+	if (!p || !pz) return undefined;
+	return pz.parts.find((sp) => sp.part === p.name);
 }
 export function selShape(): Shape3 | undefined {
 	const s = md.sel.value;
@@ -372,6 +436,7 @@ let flushTimer: number | undefined;
 let mergeKey: string | null = null;
 const FLUSH_MS = 350;
 const UNDO_MAX = 200;
+const UNDO_CHARS = 128e6;
 
 function docText(): string {
 	return JSON.stringify(md.doc.value);
@@ -385,7 +450,9 @@ function root(): string {
 function touch() {
 	batch(() => {
 		md.rev.value++;
-		md.dirty.value = docText() !== checkpoint;
+		// edited: the exact answer (back at the checkpoint after an undo?) waits for the flush, which has
+		// the text in hand anyway; working it out here is the whole document as text on every pointer move
+		md.dirty.value = true;
 		md.tokens.value = [...md.shared.value, ...palette()];
 		md.canUndo.value = undoStack.length > 0;
 		md.canRedo.value = redoStack.length > 0;
@@ -395,18 +462,34 @@ function touch() {
 export function pushUndo() {
 	undoStack.push(snapshot());
 	if (undoStack.length > UNDO_MAX) undoStack.shift();
+	// a step is the whole document as text: a big file keeps fewer of them, not hundreds of megabytes
+	let size = 0;
+	for (const u of undoStack) size += u.doc.length;
+	while (size > UNDO_CHARS && undoStack.length > 1) size -= undoStack.shift()!.doc.length;
 	redoStack = [];
 }
 /** Apply a change; `merge` names a gesture so a drag is one undo step. */
-export function mutate(fn: (d: Doc3) => void, merge?: string) {
+/**
+ * Apply a change. `merge` names a gesture: its first change snapshots for
+ * undo, the rest ride along. `posesOnly` says the change touches poses
+ * and nothing else (a drag on the rig), so the textures need no look.
+ */
+export function mutate(fn: (d: Doc3) => void, merge?: string, posesOnly = false) {
 	if (!merge || mergeKey !== merge) {
 		pushUndo();
 		mergeKey = merge ?? null;
 	}
-	const texBefore = JSON.stringify(md.doc.value.textures ?? []);
 	fn(md.doc.value);
 	touch();
-	if (JSON.stringify(md.doc.value.textures ?? []) !== texBefore) void reloadPatterns();
+	if (!posesOnly) syncTextures();
+}
+/** the textures as text as of the last look */
+let texText = "[]";
+/** Textures changed since the last look (an edit, an undo, a document from elsewhere): render them again. One look per change. */
+function syncTextures() {
+	const tex = JSON.stringify(md.doc.value.textures ?? []);
+	if (tex !== texText) void reloadPatterns();
+	texText = tex;
 }
 export function endGesture() {
 	mergeKey = null;
@@ -438,6 +521,7 @@ function restore(snap: Snap) {
 	});
 	clampCursors();
 	touch();
+	syncTextures();
 }
 export function undo() {
 	const s = undoStack.pop();
@@ -482,6 +566,7 @@ export async function flushNow() {
 	const rel = md.path.value;
 	if (!rel) return;
 	const snap = docText();
+	md.dirty.value = snap !== checkpoint;
 	if (snap === lastFlush) return;
 	lastFlush = snap;
 	try {
@@ -598,6 +683,7 @@ export async function openModel(rel: string, text: string): Promise<boolean> {
 		md.rev.value++;
 	});
 	check(d);
+	texText = JSON.stringify(d.textures ?? []);
 	void reloadPatterns();
 	loadWork(root(), rel);
 	void loadMannequin();
@@ -654,6 +740,7 @@ export function applyExternalDoc(next: Doc3): string {
 		md.polyPts.value = [];
 	});
 	touch();
+	syncTextures();
 	check(d);
 	const a = new Set((before.parts ?? []).map((p) => p.name));
 	const b = (d.parts ?? []).map((p) => p.name);
@@ -853,19 +940,28 @@ export function movePartInState(part: string, later: boolean) {
 		[s.parts[i], s.parts[j]] = [s.parts[j], s.parts[i]];
 	});
 }
+/**
+ * Change a part's entry in the pose being posed (see editPose): the
+ * current state's, or the clip key's under the playhead. `sp` names the
+ * part; the entry changed is the pose's own, found by that name.
+ */
 export function setPose(sp: StatePart3, patch: Partial<StatePart3>, merge?: string) {
-	mutate(() => {
-		Object.assign(sp, patch);
-		if (patch.mirror === false) delete sp.mirror;
-	}, merge);
+	mutate((d) => {
+		const e = editPose(d)?.parts.find((x) => x.part === sp.part);
+		if (!e) return;
+		Object.assign(e, patch);
+		if (patch.mirror === false) delete e.mirror;
+	}, merge, true);
 }
 export function resetPose(sp: StatePart3) {
 	const p = parts().find((q) => q.name === sp.part);
-	mutate(() => {
-		sp.offset = p?.pivot ? ([...p.pivot] as Vec3) : [0, 0, 0];
-		delete sp.rotate;
-		delete sp.scale;
-		delete sp.mirror;
+	mutate((d) => {
+		const e = editPose(d)?.parts.find((x) => x.part === sp.part);
+		if (!e) return;
+		e.offset = p?.pivot ? ([...p.pivot] as Vec3) : [0, 0, 0];
+		delete e.rotate;
+		delete e.scale;
+		delete e.mirror;
 	});
 }
 /** A turn about an axis given in the parent's rest frame, laid over the pose's turn. */
@@ -912,8 +1008,9 @@ export function addKey() {
 		const clip = d.clips![md.curClip.value];
 		let i = clip.keys.findIndex((k) => k.t >= t);
 		if (i >= 0 && clip.keys[i].t === t) {
+			// a key posed on its own keeps that pose: + Key only goes to it
+			if (clip.keys[i].parts) return void (md.curKey.value = i);
 			clip.keys[i].state = st.name;
-			delete clip.keys[i].parts;
 		} else {
 			if (i < 0) i = clip.keys.length;
 			clip.keys.splice(i, 0, { t, state: st.name });
@@ -941,6 +1038,21 @@ export function setKeyState(i: number, state: string) {
 		const k = d.clips![md.curClip.value].keys[i];
 		k.state = state;
 		delete k.parts;
+	});
+}
+/** A new state holding a key's pose; the key then names it. */
+export function keyToState(i: number, name: string) {
+	const key = curClip()?.keys[i];
+	if (!key || !name || states().some((s) => s.name === name)) return;
+	mutate((d) => {
+		const k = d.clips![md.curClip.value].keys[i];
+		const st: State3 = { name, parts: structuredClone(keyPoses3(d, k)) };
+		const tg = keyTargets3(d, k);
+		if (tg.length) st.targets = structuredClone(tg);
+		(d.states ??= []).push(st);
+		k.state = name;
+		delete k.parts;
+		delete k.targets;
 	});
 }
 export function setKeyEase(i: number, e: Ease | undefined) {
@@ -1634,7 +1746,7 @@ export function meshRefusal(): string | null {
 	const sh = selShape();
 	if (!s || !part || !sh) return "Select a mesh first.";
 	if (sh.kind !== "mesh") return `Mesh editing works on a mesh, and this is a ${sh.kind}.`;
-	if (curClip()) return "A clip is a preview; pick a state to edit.";
+	if (curClip()) return "A clip poses parts, not meshes; pick a state to edit.";
 	if (md.also.value.length) return "Mesh editing works on one mesh at a time.";
 	return null;
 }

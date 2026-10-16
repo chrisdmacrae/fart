@@ -3,6 +3,9 @@
 // you drag lands in the part's own space), the current part's pivot
 // drags to place it and its lever turns it, a chain's ring reaches. The
 // collision lens edits doc.collision in rest space with the same tools.
+// In a clip the rig poses the key under the playhead (editPose): a part
+// grabbed turns about its pivot (a root moves), a joint or the pivot
+// moves, the lever turns, a ring reaches; between keys a gesture keys.
 
 import {
 	shapesOfPosed,
@@ -44,7 +47,7 @@ import {
 	moveShape,
 	scaleShape,
 	shapesIn,
-	settleTargets,
+	setPose,
 	targetOf,
 	setPivot,
 	addAnchor,
@@ -254,13 +257,13 @@ export function pick(at: Vec2): Ref | null {
 	const w = frameW();
 	let best: Ref | null = null;
 	let bd = 10 / z() + 2;
-	const st = curState();
+	const fr = frame();
 	for (const p of pickableParts()) {
 		const xf = partXf(p, w);
 		const inv = xfInvert(xf);
 		const s = xfScale(xf) || 1;
 		const local = xfApply(inv, at);
-		shapesOfPosed(doc(), ps[p], st?.parts.find((sp) => sp.part === ps[p].name)).forEach((sh, si) => {
+		shapesOfPosed(doc(), ps[p], fr?.find((sp) => sp.part === ps[p].name)).forEach((sh, si) => {
 			const d = shapeDistance(sh, local) * s;
 			if (d <= bd) {
 				bd = d;
@@ -492,7 +495,7 @@ export function chainGrabs(): { c: Constraint; at: Vec2; pinned: boolean }[] {
 	if (!fr) return [];
 	const out: { c: Constraint; at: Vec2; pinned: boolean }[] = [];
 	for (const c of constraints()) {
-		const pin = mode() === "state" ? targetOf(c.name) : undefined;
+		const pin = mode() !== "collide" ? targetOf(c.name) : undefined;
 		const at = pin ? pin.at : chainEndWorld(doc(), fr, c);
 		if (at) out.push({ c, at, pinned: !!pin });
 	}
@@ -518,7 +521,7 @@ export function onDown(wm: Vec2, mods: Mods) {
 	}
 
 	if (mode() === "collide") return collideDown(wm);
-	if (mode() === "clip") return; // a preview: nothing to grab
+	if (mode() === "clip") return clipDown(wm, mods);
 
 	switch (ed.tool.value) {
 		case "select":
@@ -542,9 +545,8 @@ export function onDown(wm: Vec2, mods: Mods) {
 	}
 }
 
-function selectDown(wm: Vec2, mods: Mods) {
-	ix.handle = 0;
-	// the part's own grips first: a chain's ring, the lever, the pivot
+/** The part's own grips: a chain's ring, the lever, the pivot. True when one was grabbed. */
+function gripDown(wm: Vec2): boolean {
 	for (const g of chainGrabs()) {
 		if (dist(g.at, wm) * z() < 10) {
 			ix.ik = g.c;
@@ -552,7 +554,7 @@ function selectDown(wm: Vec2, mods: Mods) {
 			const k = parts().findIndex((p) => p.name === last);
 			if (k >= 0) ed.curPart.value = k;
 			ed.partPicked.value = true;
-			return;
+			return true;
 		}
 	}
 	const sp = poseOfCur();
@@ -562,18 +564,78 @@ function selectDown(wm: Vec2, mods: Mods) {
 		const o = worldPivot(part.name) ?? [0, 0];
 		if (lever && dist(lever, wm) * z() < 10) {
 			ed.partPicked.value = true;
-			ix.poseRot = true;
-			ix.poseRot0 = sp.rotate ?? 0;
-			ix.poseAng0 = Math.atan2(wm[1] - o[1], wm[0] - o[0]);
-			return;
+			startTurn(wm, o, sp.rotate ?? 0);
+			return true;
 		}
 		if (dist(o, wm) * z() < 9) {
 			ed.partPicked.value = true;
-			ix.poseDrag = true;
-			ix.poseGrab = [wm[0] - o[0], wm[1] - o[1]];
-			return;
+			startMove(wm, o);
+			return true;
 		}
 	}
+	return false;
+}
+
+function startTurn(wm: Vec2, o: Vec2, rotate: number) {
+	ix.poseRot = true;
+	ix.poseRot0 = rotate;
+	ix.poseAng0 = Math.atan2(wm[1] - o[1], wm[0] - o[0]);
+}
+
+function startMove(wm: Vec2, o: Vec2) {
+	ix.poseDrag = true;
+	ix.poseGrab = [wm[0] - o[0], wm[1] - o[1]];
+}
+
+/** The joint (a drawn part's pivot) under a point, if any; the current part's first. */
+export function jointAt(wm: Vec2): number {
+	const ps = parts();
+	const W = frameW();
+	const order = pickableParts().sort((a, b) => (a === ed.curPart.value ? -1 : b === ed.curPart.value ? 1 : 0));
+	for (const i of order) {
+		const o = worldPivot(ps[i].name, W);
+		if (o && dist(o, wm) * z() < 8) return i;
+	}
+	return -1;
+}
+
+/**
+ * In a clip the canvas poses the key under the playhead: the grips first,
+ * then a joint (a drag moves it), then a part (a drag turns it about its
+ * pivot; a part with no parent moves instead). Shapes do not change here.
+ */
+function clipDown(wm: Vec2, mods: Mods) {
+	ix.handle = 0;
+	if (ed.tool.value !== "select") return;
+	ed.playing.value = false;
+	if (gripDown(wm)) return;
+	const take = (i: number) => {
+		ed.curPart.value = i;
+		ed.partPicked.value = true;
+		ed.sel.value = [];
+		return poseOfCur();
+	};
+	const j = jointAt(wm);
+	if (j >= 0) {
+		if (take(j)) startMove(wm, worldPivot(parts()[j].name) ?? wm);
+		return;
+	}
+	const hit = pick(wm);
+	if (hit) {
+		const sp = take(hit.p);
+		const part = parts()[hit.p];
+		const o = worldPivot(part.name) ?? wm;
+		if (!sp) return;
+		if (part.parent && !mods.alt) startTurn(wm, o, sp.rotate ?? 0);
+		else startMove(wm, o);
+		return;
+	}
+	ed.partPicked.value = false;
+}
+
+function selectDown(wm: Vec2, mods: Mods) {
+	ix.handle = 0;
+	if (gripDown(wm)) return;
 	// then the shape's handles, the selection's grips, the shape itself
 	const hs = worldHandles();
 	for (let k = 0; k < hs.length; k++) {
@@ -677,7 +739,7 @@ export function onMove(wm: Vec2, mods: Mods) {
 	}
 	if (!ix.down) {
 		// hover: what a click would pick
-		if (ed.tool.value === "select" && mode() === "state") {
+		if (ed.tool.value === "select" && mode() !== "collide") {
 			const h = pick(wm);
 			const c = ed.hover.value;
 			if ((h === null) !== (c === null) || (h && c && (h.p !== c.p || h.s !== c.s))) ed.hover.value = h;
@@ -734,11 +796,10 @@ export function onMove(wm: Vec2, mods: Mods) {
 		if (sp && part) {
 			// a turn about the pivot on screen is the same turn in the part's own frame
 			const o = worldPivot(part.name) ?? [0, 0];
-			const a = Math.atan2(wm[1] - o[1], wm[0] - o[0]);
-			mutate((d) => {
-				sp.rotate = ix.poseRot0 + (a - ix.poseAng0);
-				settleTargets(d);
-			}, "pose");
+			let turn = Math.atan2(wm[1] - o[1], wm[0] - o[0]) - ix.poseAng0;
+			if (mods.shift) turn = Math.round(turn / (Math.PI / 12)) * (Math.PI / 12);
+			// a pointer that has not moved changes nothing (and gives a clip key no pose of its own)
+			if (Math.abs(ix.poseRot0 + turn - (sp.rotate ?? 0)) > 1e-9) setPose(sp, { rotate: ix.poseRot0 + turn }, "pose");
 		}
 	} else if (ix.poseDrag) {
 		const sp = poseOfCur();
@@ -748,11 +809,9 @@ export function onMove(wm: Vec2, mods: Mods) {
 			const W = frameW();
 			const parentXf = part.parent ? (W.get(part.parent) ?? XF_ID) : XF_ID;
 			const want: Vec2 = [wm[0] - ix.poseGrab[0], wm[1] - ix.poseGrab[1]];
-			const local = xfApply(xfInvert(parentXf), want);
-			mutate((d) => {
-				sp.offset = local;
-				settleTargets(d);
-			}, "pose");
+			const offset = xfApply(xfInvert(parentXf), want);
+			const was = sp.offset ?? pivotOf(part);
+			if (Math.abs(offset[0] - was[0]) > 1e-9 || Math.abs(offset[1] - was[1]) > 1e-9) setPose(sp, { offset }, "pose");
 		}
 	} else {
 		// marquee / drawing previews only need a redraw

@@ -91,12 +91,12 @@ function pointsOf(sh: Shape3): Vec3[] | null {
 	return null; // a sweep is its profile: its fields are in the inspector
 }
 
-/** The selected shape if there is one, else the picked part's pose; nothing while a clip previews. */
+/** The selected shape if there is one, else the picked part's pose; in a clip only the pose (the key's). */
 let refused: string | null = null;
 function modelTarget(): Target | null {
 	refused = null;
-	if (curClip() || md.tool.value !== "select") return null;
-	const chosen = selected();
+	if (md.tool.value !== "select") return null;
+	const chosen = curClip() ? [] : selected();
 	if (chosen.length) {
 		// one centre for all of them, in view space: they turn and size about it together
 		const morphing = md.deform.value && md.curClip.value < 0;
