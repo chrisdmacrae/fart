@@ -6,22 +6,14 @@
     {
       "name": "slime",
       "ref": "slime.fart",
-      "at": [
-        -9,
-        0,
-        0
-      ],
+      "at": [-9, 0, 0],
       "clip": "bounce",
       "t": 0
     },
     {
       "name": "slime2",
       "ref": "slime.fart",
-      "at": [
-        9,
-        0,
-        2
-      ],
+      "at": [9, 0, 2],
       "clip": "wobble",
       "t": 0.2,
       "scale": 0.7
@@ -29,11 +21,7 @@
     {
       "name": "vase",
       "ref": "vase.fart",
-      "at": [
-        0,
-        0,
-        6
-      ],
+      "at": [0, 0, 6],
       "clip": "turn",
       "t": 0
     }

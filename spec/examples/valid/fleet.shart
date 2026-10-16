@@ -8,37 +8,25 @@
     {
       "name": "lead",
       "ref": "hero.fart",
-      "at": [
-        0,
-        0
-      ],
+      "at": [0, 0],
       "clip": "wave",
       "t": 0.15
     },
     {
       "name": "wing",
-      "at": [
-        30,
-        10
-      ],
+      "at": [30, 10],
       "rotate": 0.3,
       "children": [
         {
           "name": "l",
           "ref": "mirror.fart",
-          "at": [
-            -12,
-            0
-          ],
+          "at": [-12, 0],
           "state": "idle"
         },
         {
           "name": "r",
           "ref": "mirror.fart",
-          "at": [
-            12,
-            0
-          ],
+          "at": [12, 0],
           "mirror": true,
           "clip": "snap",
           "t": 0.1
@@ -48,10 +36,7 @@
     {
       "name": "held",
       "ref": "chest.fart",
-      "at": [
-        0,
-        40
-      ],
+      "at": [0, 40],
       "children": [
         {
           "name": "gem",

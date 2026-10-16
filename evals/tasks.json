@@ -1,0 +1,13 @@
+{
+  "description": "Realistic tasks an agent is asked to do on the example sets, run through Claude Code with the fastart skill (evals/run.mjs). Each lists the set it copies, the prompt, and a check: a file that must validate and a predicate on it. Compare tokens and turns before and after a tooling change.",
+  "tasks": [
+    { "id": "blink", "set": "models", "prompt": "In dog.fart, add a clip named blink that closes and opens the eyes (scale the eye parts down and back) over a quarter second. Validate the file when done.", "file": "dog.fart", "expect": "clip:blink" },
+    { "id": "wings", "set": "space", "prompt": "In ships/fighter.fart, make the thrust state a little more dramatic: widen the wings by posing wing_l and wing_r outward in that state only. Keep every other state as it is.", "file": "ships/fighter.fart", "expect": "state:thrust" },
+    { "id": "crate-smooth", "set": "cabin", "prompt": "In crate.fart, give the crate's mesh one level of smoothing and smooth normals so it reads rounded, and add a short clip named settle that squashes it slightly then returns.", "file": "crate.fart", "expect": "clip:settle" },
+    { "id": "new-prop", "set": "space", "prompt": "Add a new prop: pickups/battery.fart, a small battery with a body and a glowing cap that follows the project's direction (read style.gas first). Give it an idle state and a pulse clip.", "file": "pickups/battery.fart", "expect": "clip:pulse" },
+    { "id": "mouth", "set": "curves", "prompt": "In face.fart, add a viseme state named U (lips pushed forward and narrow) by morphing the mouth path, and put it into the speak clip between O and E.", "file": "face.fart", "expect": "state:U" },
+    { "id": "recolour", "set": "space", "prompt": "Make a new palette file palettes/rust.fart with the same slot names as palettes/hull.fart but in rusted browns and oranges, and link it from ships/drone.fart instead of hull.fart.", "file": "ships/drone.fart", "expect": "ref:rust" },
+    { "id": "lathe-jar", "set": "curves", "prompt": "Add a second sweep to vase.fart: a lid, a lathe with a knob on top, in the clay colour, sitting on the rim. Keep it a sweep so the profile stays editable.", "file": "vase.fart", "expect": "shapes>=3" },
+    { "id": "outline-only", "set": "space", "prompt": "Tell me, without changing anything, which parts of ships/cruiser.fart have anchors and what the longest clip is.", "file": "ships/cruiser.fart", "expect": "unchanged" }
+  ]
+}

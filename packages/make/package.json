@@ -1,0 +1,17 @@
+{
+  "name": "@fastart/make",
+  "version": "0.1.0",
+  "description": "The authoring library for .fart generators: documents, parts, mirrored parts, states, clips, morphs, recipes, and a write that validates.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": { "@fastart/core": "*" },
+  "license": "MIT"
+}

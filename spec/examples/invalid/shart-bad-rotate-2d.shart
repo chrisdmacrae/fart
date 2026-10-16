@@ -4,11 +4,7 @@
     {
       "name": "a",
       "ref": "../valid/chest.fart",
-      "rotate": [
-        0,
-        0,
-        1
-      ]
+      "rotate": [0, 0, 1]
     }
   ]
 }

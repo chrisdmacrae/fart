@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadScene, parseDoc, parseScene, refInfo, resolvePalettes, resolveTextures, tokenNames } from "../src/index.ts";
+import { loadScene, parseDoc, parseScene, refInfo, resolvePalettes, resolveTextures, tokenNames , validateDirection, loadDirection } from "../src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const examples = resolve(here, "../../../spec/examples");
@@ -19,6 +19,7 @@ interface Case {
 	warnings?: string[];
 	note?: string;
 	shart?: boolean;
+	gas?: boolean;
 }
 const manifest = JSON.parse(await readFile(join(examples, "manifest.json"), "utf8")) as { cases: Case[] };
 
@@ -26,6 +27,28 @@ for (const c of manifest.cases) {
 	test(`${c.file}${c.note ? ` (${c.note})` : ""}`, async () => {
 		const file = join(examples, c.file);
 		const text = await readFile(file, "utf8");
+		if (c.gas) {
+			// a direction: its structure, then its extends read from beside it
+			let raw: unknown;
+			try {
+				raw = JSON.parse(text);
+			} catch {
+				raw = null;
+			}
+			const errs = validateDirection(raw);
+			const loaded = errs.length ? null : await loadDirection(text, async (rel) => {
+				try {
+					return await readFile(resolve(dirname(file), rel), "utf8");
+				} catch {
+					return null;
+				}
+			});
+			const bad = errs.length > 0 || (loaded ? loaded.errors.length > 0 : true);
+			if (c.valid) assert.ok(!bad, [...errs, ...(loaded?.errors ?? [])].join("; "));
+			else assert.ok(bad, "expected a refused direction");
+			if (loaded && c.valid) assert.equal(loaded.unresolved.length, 0, `unresolved: ${loaded.unresolved.join(", ")}`);
+			return;
+		}
 		if (c.shart) {
 			// a scene: checked with everything it names read from beside it
 			const first = parseScene(text);

@@ -1,1 +1,9 @@
-{"version": 1, "parts": [{"name": "head", "parent": "torso"}]}
+{
+  "version": 1,
+  "parts": [
+    {
+      "name": "head",
+      "parent": "torso"
+    }
+  ]
+}

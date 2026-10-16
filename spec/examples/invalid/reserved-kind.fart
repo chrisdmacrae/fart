@@ -1,5 +1,23 @@
 {
   "version": 1,
-  "palette": [{"name": "ink", "rgb": [0, 0, 0, 255]}],
-  "parts": [{"name": "body", "shapes": [{"kind": "ring", "color": "ink", "at": [0, 0], "r": 3, "inner": 1}]}]
+  "palette": [
+    {
+      "name": "ink",
+      "rgb": [0, 0, 0, 255]
+    }
+  ],
+  "parts": [
+    {
+      "name": "body",
+      "shapes": [
+        {
+          "kind": "ring",
+          "color": "ink",
+          "at": [0, 0],
+          "r": 3,
+          "inner": 1
+        }
+      ]
+    }
+  ]
 }

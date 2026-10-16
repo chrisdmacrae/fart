@@ -4,173 +4,112 @@
   "palette": [
     {
       "name": "dent",
-      "rgb": [
-        52,
-        50,
-        58,
-        255
-      ]
+      "rgb": [52, 50, 58, 255]
     },
     {
       "name": "gleam",
-      "rgb": [
-        110,
-        108,
-        116,
-        255
-      ]
+      "rgb": [110, 108, 116, 255]
     }
   ],
   "parts": [
     {
       "name": "dents",
-      "pivot": [
-        0,
-        0
-      ],
+      "pivot": [0, 0],
       "shapes": [
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            0.7,
-            0.8
-          ],
+          "at": [0.7, 0.8],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            2.1,
-            0.5
-          ],
+          "at": [2.1, 0.5],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            3.4,
-            1.2
-          ],
+          "at": [3.4, 1.2],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            1.2,
-            2.2
-          ],
+          "at": [1.2, 2.2],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            2.8,
-            2.6
-          ],
+          "at": [2.8, 2.6],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            0.4,
-            3.3
-          ],
+          "at": [0.4, 3.3],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            2,
-            3.6
-          ],
+          "at": [2, 3.6],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "dent",
-          "at": [
-            3.5,
-            3
-          ],
+          "at": [3.5, 3],
           "r": 0.42
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            0.6,
-            0.65
-          ],
+          "at": [0.6, 0.65],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            2,
-            0.35
-          ],
+          "at": [2, 0.35],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            3.3,
-            1.05
-          ],
+          "at": [3.3, 1.05],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            1.1,
-            2.05
-          ],
+          "at": [1.1, 2.05],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            2.7,
-            2.45
-          ],
+          "at": [2.7, 2.45],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            0.3,
-            3.15
-          ],
+          "at": [0.3, 3.15],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            1.9,
-            3.45
-          ],
+          "at": [1.9, 3.45],
           "r": 0.16
         },
         {
           "kind": "circle",
           "color": "gleam",
-          "at": [
-            3.4,
-            2.85
-          ],
+          "at": [3.4, 2.85],
           "r": 0.16
         }
       ]

@@ -7,10 +7,18 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "bin": { "fart": "./dist/cli.js" },
-  "files": ["dist", "README.md"],
+  "bin": {
+    "fart": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.check.json",
@@ -20,5 +28,8 @@
     "@types/node": "^24.0.0",
     "ajv": "^8.17.0",
     "typescript": "^5.9.0"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4"
   }
 }

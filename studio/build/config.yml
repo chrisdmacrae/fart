@@ -11,7 +11,7 @@ info:
   description: "the reference editor for the Fast Art Format" # The application description
   copyright: "(c) 2026 Joel Huggett" # Copyright text
   comments: "A specification-driven vector art format for interactive software." # Comments
-  version: "0.7.0" # The application version
+  version: "0.8.0" # The application version
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"

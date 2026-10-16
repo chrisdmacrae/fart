@@ -1,2 +1,26 @@
-{"version": 1, "parts": [{"name": "body"}], "states": [{"name": "s", "parts": []}],
- "clips": [{"name": "c", "keys": [{"t": 0, "state": "s", "parts": []}]}]}
+{
+  "version": 1,
+  "parts": [
+    {
+      "name": "body"
+    }
+  ],
+  "states": [
+    {
+      "name": "s",
+      "parts": []
+    }
+  ],
+  "clips": [
+    {
+      "name": "c",
+      "keys": [
+        {
+          "t": 0,
+          "state": "s",
+          "parts": []
+        }
+      ]
+    }
+  ]
+}

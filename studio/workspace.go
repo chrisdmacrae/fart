@@ -295,3 +295,34 @@ func (p *ProjectService) WindowWork() {
 	p.win.SetSize(tw, th)
 	p.win.Center()
 }
+
+// ------------------------------------------------------------- generators
+
+// RunGenerator runs a project's generator (a .mjs under the root, as an
+// asset's meta.gen names it relative to the asset) with node, in the
+// project's folder, and returns what it printed. The watcher then sees
+// the files it wrote.
+func (p *ProjectService) RunGenerator(root, rel string) (string, error) {
+	full, err := rooted(root, rel)
+	if err != nil {
+		return "", err
+	}
+	if !strings.HasSuffix(full, ".mjs") && !strings.HasSuffix(full, ".js") {
+		return "", errors.New("a generator is a .mjs file")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		return "", errors.New("node is not on the PATH: install Node to run generators")
+	}
+	cmd := exec.Command(node, full)
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", errors.New(msg)
+	}
+	return strings.TrimSpace(string(out)), nil
+}

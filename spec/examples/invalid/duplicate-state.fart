@@ -1,1 +1,18 @@
-{"version": 1, "parts": [{"name": "body"}], "states": [{"name": "idle", "parts": []}, {"name": "idle", "parts": []}]}
+{
+  "version": 1,
+  "parts": [
+    {
+      "name": "body"
+    }
+  ],
+  "states": [
+    {
+      "name": "idle",
+      "parts": []
+    },
+    {
+      "name": "idle",
+      "parts": []
+    }
+  ]
+}

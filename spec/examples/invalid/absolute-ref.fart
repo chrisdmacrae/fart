@@ -1,1 +1,6 @@
-{"version": 1, "palette_refs": ["/Users/someone/palettes/base.fart"]}
+{
+  "version": 1,
+  "palette_refs": [
+    "/Users/someone/palettes/base.fart"
+  ]
+}

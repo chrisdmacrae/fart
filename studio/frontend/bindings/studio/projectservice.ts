@@ -291,6 +291,16 @@ export function Reveal(root: string, rel: string): $CancellablePromise<void> {
     return $Call.ByID(2085297517, root, rel);
 }
 
+/**
+ * RunGenerator runs a project's generator (a .mjs under the root, as an
+ * asset's meta.gen names it relative to the asset) with node, in the
+ * project's folder, and returns what it printed. The watcher then sees
+ * the files it wrote.
+ */
+export function RunGenerator(root: string, rel: string): $CancellablePromise<string> {
+    return $Call.ByID(4228877482, root, rel);
+}
+
 export function Serve(root: string): $CancellablePromise<$models.ServeInfo> {
     return $Call.ByID(1611635379, root);
 }

@@ -1,12 +1,21 @@
 {
   "version": 1,
   "name": "arrow",
-  "palette": [{"name": "ink", "rgb": [30, 30, 30, 255]}],
+  "palette": [
+    {
+      "name": "ink",
+      "rgb": [30, 30, 30, 255]
+    }
+  ],
   "parts": [
     {
       "name": "body",
       "shapes": [
-        {"kind": "poly", "color": "ink", "points": [[0, -6], [6, 0], [2, 0], [2, 6], [-2, 6], [-2, 0], [-6, 0]]}
+        {
+          "kind": "poly",
+          "color": "ink",
+          "points": [[0, -6], [6, 0], [2, 0], [2, 6], [-2, 6], [-2, 0], [-6, 0]]
+        }
       ]
     }
   ]

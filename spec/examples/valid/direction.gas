@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "name": "space",
+  "about": "A clean fleet in a dark sky: hard shapes, shared hull colours, one engine glow.",
+  "palette_refs": [
+    "palettes/hull.fart"
+  ],
+  "roles": {
+    "hull": "hull",
+    "glow": "glow",
+    "danger": "warn"
+  },
+  "scale": {
+    "unit": "a metre",
+    "sizes": {
+      "ship": [
+        10,
+        40
+      ],
+      "rock": [
+        6,
+        30
+      ]
+    }
+  },
+  "shapes": {
+    "kinds": [
+      "poly",
+      "line",
+      "circle",
+      "path"
+    ],
+    "budget": {
+      "ship": 40,
+      "*": 80
+    }
+  },
+  "motion": {
+    "ease": "in-out",
+    "max": 2,
+    "names": [
+      "idle",
+      "thrust"
+    ]
+  },
+  "names": {
+    "pattern": "^[a-z][a-z0-9_]*$"
+  },
+  "references": [
+    {
+      "file": "ships/fighter.fart",
+      "for": "the standard ship"
+    }
+  ],
+  "rules": [
+    {
+      "say": "every ship links the hull palette",
+      "check": "palette.refs",
+      "args": {
+        "file": "palettes/hull.fart"
+      }
+    },
+    {
+      "say": "nothing is pure black",
+      "check": "token.never",
+      "args": {
+        "rgb": [
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "avoid": [
+    "gradients"
+  ],
+  "classes": {
+    "rock": {
+      "motion": {
+        "max": 4
+      }
+    }
+  }
+}

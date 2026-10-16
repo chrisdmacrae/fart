@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fastart.dev/gas.schema.json",
+  "title": "General art style (.gas) v1",
+  "type": "object",
+  "required": [
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "extends": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "about": {
+      "type": "string"
+    },
+    "palette_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "scale": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "type": "string"
+        },
+        "sizes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    "line": {
+      "type": "object",
+      "properties": {
+        "outline": {
+          "type": "number",
+          "minimum": 0
+        },
+        "where": {
+          "type": "string"
+        }
+      }
+    },
+    "shapes": {
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "corners": {
+          "type": "string"
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "light": {
+      "type": "object",
+      "properties": {
+        "light": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "ambient": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "bands": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "shade": {
+          "type": "string"
+        }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "properties": {
+        "ease": {
+          "enum": [
+            "linear",
+            "in",
+            "out",
+            "in-out",
+            "step"
+          ]
+        },
+        "idle": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "names": {
+      "type": "object",
+      "properties": {
+        "parts": {
+          "type": "string"
+        },
+        "states": {
+          "type": "string"
+        },
+        "pattern": {
+          "type": "string"
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "for": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "say"
+        ],
+        "properties": {
+          "say": {
+            "type": "string"
+          },
+          "check": {
+            "enum": [
+              "palette.refs",
+              "palette.max",
+              "palette.only",
+              "token.never",
+              "shapes.max",
+              "points.max",
+              "faces.max",
+              "kinds.only",
+              "smooth.max",
+              "clip.max",
+              "states.has",
+              "names.match",
+              "line.width",
+              "size.within"
+            ]
+          },
+          "args": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "avoid": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "classes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "meta": {
+      "type": "object"
+    }
+  }
+}

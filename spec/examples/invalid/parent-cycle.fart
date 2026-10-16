@@ -1,1 +1,17 @@
-{"version": 1, "parts": [{"name": "a", "parent": "b"}, {"name": "b", "parent": "c"}, {"name": "c", "parent": "a"}]}
+{
+  "version": 1,
+  "parts": [
+    {
+      "name": "a",
+      "parent": "b"
+    },
+    {
+      "name": "b",
+      "parent": "c"
+    },
+    {
+      "name": "c",
+      "parent": "a"
+    }
+  ]
+}

@@ -2,10 +2,10 @@
 // document. Each returns an MCP result: content blocks, and isError when
 // something was wrong with the ask.
 
-import { validate, sampleClip, solveTargets, sampleTargets, type Doc } from "@fastart/core";
+import { validate, sampleClip, solveTargets, sampleTargets, outlineDoc, leanDoc, partDoc, applyPatch, pose as poseVerb, morph as morphVerb, setClip, make as makeVerb, type Doc, type PatchOp, type Recipe } from "@fastart/core";
 import { shell, type ToolCall } from "../shell/shell.ts";
 import { ed, doc, curState, curClip, parts, primary, applyExternalDoc, frame, shapesIn } from "./editor.ts";
-import { project, openDoc } from "./project.ts";
+import { project, openDoc, refreshDirection } from "./project.ts";
 import { renderPNG } from "../canvas/draw.ts";
 import { chatNote } from "./chat.ts";
 import { projectDoc, as3d, type Doc3 } from "@fastart/core";
@@ -31,7 +31,19 @@ const fail = (t: string): Result => ({ content: [{ type: "text", text: t }], isE
 
 const HARD = new Set(["json", "version", "schema", "path"]);
 
-function getDocument(): Result {
+/** The document in the detail asked for: the outline (default), lean (no bakes), full, or one part. */
+function view(d: Doc, args: Record<string, unknown>, rel: string | null): unknown {
+	if (typeof args.part === "string") {
+		const p = partDoc(d, args.part);
+		return p ?? { error: `no part named ${args.part}` };
+	}
+	const detail = typeof args.detail === "string" ? args.detail : "outline";
+	if (detail === "full") return d;
+	if (detail === "lean") return leanDoc(d);
+	return outlineDoc(d, rel ?? undefined);
+}
+
+function getDocument(args: Record<string, unknown>): Result {
 	if (inModel()) {
 		const st = M.curState();
 		const clip = M.curClip();
@@ -39,8 +51,8 @@ function getDocument(): Result {
 		return text(
 			JSON.stringify({
 				open: M.md.path.value,
-				note: "a 3D model (space 3d) is open in the model screen: mesh, ball and rod shapes, [x, y, z] turns; render shows it under the current view",
-				doc: M.doc(),
+				note: "a 3D model (space 3d) is open in the model screen: mesh, ball, rod and sweep shapes, [x, y, z] turns; render shows it under the current view. detail: outline (this), lean, full; or part: name",
+				doc: view(M.doc() as unknown as Doc, args, M.md.path.value),
 				selection: { part: M.parts()[M.md.curPart.value]?.name ?? null, shape: sel ? { part: M.parts()[sel.part]?.name, index: sel.shape } : null },
 				onCanvas: clip ? { clip: clip.name, t: M.md.clipTime.value } : { state: st?.name ?? null },
 				view: M.md.viewName.value || M.md.turn.value,
@@ -68,7 +80,8 @@ function getDocument(): Result {
 	return text(
 		JSON.stringify({
 			open: rel,
-			doc: d,
+			note: "detail: outline (this), lean (no bakes), full; or part: name for one part",
+			doc: view(d, args, rel),
 			selection: { part: parts()[ed.curPart.value]?.name ?? null, primaryShape: p ? { part: parts()[p.p]?.name, index: p.s, shape: shapesIn(parts()[p.p])[p.s] } : null, shapes: sel.map((r) => ({ part: parts()[r.p]?.name, index: r.s })) },
 			onCanvas: clip ? { clip: clip.name, t: ed.clipTime.value } : { state: st?.name ?? null },
 			sharedTokens: ed.shared.value.map((t) => t.name),
@@ -100,6 +113,100 @@ function applyDocument(args: Record<string, unknown>): Result {
 	const note = typeof args.note === "string" && args.note.trim() ? args.note.trim() : summary;
 	chatNote(`Claude changed the document · ${note}`);
 	return text(`applied. ${summary}${r.warnings.length ? `\nwarnings: ${r.warnings.map((w) => `${w.code} ${w.path}`).join(", ")}` : ""}`);
+}
+
+/** A copy of the open document, changed by fn, validated and applied as one undo step. */
+function change(args: Record<string, unknown>, what: string, fn: (d: Doc) => string[]): Result {
+	const model = inModel();
+	if (!model && !ed.path.value) return fail("no file is open in the editor; open_file first");
+	const d = JSON.parse(JSON.stringify(model ? M.doc() : doc())) as Doc;
+	let lines: string[];
+	try {
+		lines = fn(d);
+	} catch (e) {
+		return fail(`${what} refused: ${(e as Error).message}`);
+	}
+	const shared = model ? M.md.shared.value : ed.shared.value;
+	const unresolved = model ? M.md.unresolved.value : ed.unresolved.value;
+	const r = validate(d, { refTokens: unresolved.length ? null : shared.map((t) => t.name) });
+	if (r.errors.length) return fail(`${what} refused, the result has errors:\n` + r.errors.map((e) => `${e.code} ${e.path}: ${e.message}`).join("\n"));
+	const summary = model ? M.applyExternalDoc(d as unknown as Doc3) : applyExternalDoc(d);
+	const note = typeof args.note === "string" && args.note.trim() ? args.note.trim() : lines.join("; ");
+	chatNote(`Claude changed the ${model ? "model" : "document"} · ${note}`);
+	return text(`applied: ${lines.join("; ")} (${summary})${r.warnings.length ? `\nwarnings: ${r.warnings.map((w) => `${w.code} ${w.path}`).join(", ")}` : ""}`);
+}
+
+function applyPatchTool(args: Record<string, unknown>): Result {
+	const ops = args.ops;
+	if (!Array.isArray(ops) || !ops.length) return fail("ops is a non-empty list of {op, path, value?, from?}");
+	return change(args, "the patch", (d) => applyPatch(d, ops as PatchOp[]));
+}
+
+function poseTool(args: Record<string, unknown>): Result {
+	if (typeof args.state !== "string" || typeof args.part !== "string") return fail("state and part are required");
+	return change(args, "the pose", (d) => [poseVerb(d, args.state as string, args.part as string, args as never)]);
+}
+
+function morphTool(args: Record<string, unknown>): Result {
+	if (typeof args.state !== "string" || typeof args.part !== "string" || typeof args.shape !== "number") return fail("state, part and shape (index) are required");
+	return change(args, "the morph", (d) => [morphVerb(d, args.state as string, args.part as string, args as never)]);
+}
+
+function clipTool(args: Record<string, unknown>): Result {
+	if (typeof args.name !== "string" || args.keys === undefined) return fail("name and keys are required");
+	return change(args, "the clip", (d) => [setClip(d, args.name as string, { keys: args.keys as never, loop: !!args.loop })]);
+}
+
+function makeTool(args: Record<string, unknown>): Result {
+	if (typeof args.part !== "string" || typeof args.recipe !== "object" || !args.recipe) return fail("part and recipe are required");
+	return change(args, "the shape", (d) => [makeVerb(d, args.part as string, args.recipe as Recipe).note]);
+}
+
+/** Several renders tiled in one image: every state, or a clip's frames. */
+async function sheet(d: Doc, tokens: readonly import("@fastart/core").Token[], args: Record<string, unknown>): Promise<Result> {
+	const which = args.sheet === "clip" ? "clip" : "states";
+	const cell = typeof args.size === "number" ? Math.max(64, Math.min(512, args.size)) : 256;
+	let frames: { label: string; pose: string | readonly import("@fastart/core").StatePart[] }[] = [];
+	if (which === "states") frames = (d.states ?? []).map((s) => ({ label: s.name, pose: s.name }));
+	else {
+		const c = d.clips?.find((k) => k.name === args.clip) ?? d.clips?.[0];
+		if (!c) return fail("no clip to sheet");
+		const n = typeof args.frames === "number" ? Math.max(2, Math.min(24, args.frames)) : 8;
+		const dur = c.keys[c.keys.length - 1]?.t ?? 0;
+		for (let i = 0; i < n; i++) {
+			const t = (i / (n - 1)) * dur;
+			const poses = sampleClip(d, c, t);
+			const tg = sampleTargets(d, c, t);
+			if (tg.length) solveTargets(d, poses, tg);
+			frames.push({ label: `${c.name} ${t.toFixed(2)}s`, pose: poses });
+		}
+	}
+	if (!frames.length) return fail("nothing to sheet");
+	const cols = Math.min(frames.length, 4);
+	const rows = Math.ceil(frames.length / cols);
+	const canvas = document.createElement("canvas");
+	canvas.width = cols * cell;
+	canvas.height = rows * (cell + 18);
+	const ctx = canvas.getContext("2d")!;
+	ctx.fillStyle = "#18181b";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	ctx.fillStyle = "#c8c8c4";
+	ctx.font = "12px system-ui, sans-serif";
+	for (let i = 0; i < frames.length; i++) {
+		const png = renderPNG(d, tokens, frames[i].pose, cell);
+		const img = new Image();
+		await new Promise<void>((res) => {
+			img.onload = () => res();
+			img.onerror = () => res();
+			img.src = `data:image/png;base64,${png}`;
+		});
+		const x = (i % cols) * cell;
+		const y = Math.floor(i / cols) * (cell + 18);
+		ctx.drawImage(img, x + (cell - img.width) / 2, y + (cell - img.height) / 2);
+		ctx.fillText(frames[i].label, x + 6, y + cell + 13);
+	}
+	const data = canvas.toDataURL("image/png").split(",")[1];
+	return { content: [{ type: "image", data, mimeType: "image/png" }, { type: "text", text: `sheet of ${frames.length} ${which === "states" ? "states" : "frames"}: ${frames.map((f) => f.label).join(", ")}` }] };
 }
 
 /** The views render can look from, by name: the six straight-on ones and a three-quarter view from the front, the right and above. */
@@ -496,6 +603,14 @@ async function openFile(args: Record<string, unknown>): Promise<Result> {
 	return ok ? text(`opened ${path}`) : fail(`could not open ${path}`);
 }
 
+/** The project's art direction, merged, with its issues; or a note that there is none. */
+async function getDirection(): Promise<Result> {
+	await refreshDirection();
+	const d = project.direction.value;
+	if (!d) return text(JSON.stringify({ direction: null, note: `no style.gas at the project root${project.directionIssues.value.length ? `: ${project.directionIssues.value.join("; ")}` : ""}` }));
+	return text(JSON.stringify({ direction: d, issues: project.directionIssues.value, note: "read about first; new assets take palette_refs; references are files to copy from; rules are checked by fart lint" }));
+}
+
 /** One call, answered: what handleTool sends back (and what a script can ask for directly). */
 export async function callTool(name: string, args: Record<string, unknown> = {}): Promise<Result> {
 	let result: Result | null = null;
@@ -510,13 +625,34 @@ export async function handleTool(call: ToolCall, direct?: (r: Result) => void) {
 		const args = call.args ?? {};
 		switch (call.name) {
 			case "get_document":
-				result = getDocument();
+				result = getDocument(args);
 				break;
 			case "apply_document":
 				result = applyDocument(args);
 				break;
+			case "apply_patch":
+				result = applyPatchTool(args);
+				break;
+			case "pose":
+				result = poseTool(args);
+				break;
+			case "morph":
+				result = morphTool(args);
+				break;
+			case "clip":
+				result = clipTool(args);
+				break;
+			case "make":
+				result = makeTool(args);
+				break;
 			case "render":
-				result = await render(args);
+				if (args.sheet) {
+					if (inModel()) {
+						const flat = projectDoc(M.doc(), { view: M.md.viewName.value || M.md.turn.value, light: M.md.light.value, ambient: M.md.ambient.value });
+						result = await sheet(flat, M.md.tokens.value, args);
+					} else if (!ed.path.value) result = fail("no file is open");
+					else result = await sheet(doc(), ed.tokens.value, args);
+				} else result = await render(args);
 				break;
 			case "pipe":
 				result = pipeTool(args);
@@ -529,6 +665,9 @@ export async function handleTool(call: ToolCall, direct?: (r: Result) => void) {
 				break;
 			case "open_file":
 				result = await openFile(args);
+				break;
+			case "get_direction":
+				result = await getDirection();
 				break;
 			case "import_gltf":
 				result = await importTool(args);

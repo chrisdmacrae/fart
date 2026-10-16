@@ -1,19 +1,46 @@
 {
   "version": 1,
   "name": "edge cases that are still legal",
-  "palette": [{"name": "ink", "rgb": [0, 0, 0, 0]}],
+  "palette": [
+    {
+      "name": "ink",
+      "rgb": [0, 0, 0, 0]
+    }
+  ],
   "parts": [
     {
       "name": "body",
       "shapes": [
-        {"kind": "circle", "color": "ink", "at": [0, 0], "r": 0},
-        {"kind": "line", "color": "ink", "a": [0, 0], "b": [0, 0], "w": 0}
+        {
+          "kind": "circle",
+          "color": "ink",
+          "at": [0, 0],
+          "r": 0
+        },
+        {
+          "kind": "line",
+          "color": "ink",
+          "a": [0, 0],
+          "b": [0, 0],
+          "w": 0
+        }
       ]
     }
   ],
   "states": [
-    {"name": "empty", "parts": []},
-    {"name": "tiny", "parts": [{"part": "body", "scale": 0}]}
+    {
+      "name": "empty",
+      "parts": []
+    },
+    {
+      "name": "tiny",
+      "parts": [
+        {
+          "part": "body",
+          "scale": 0
+        }
+      ]
+    }
   ],
   "collision": []
 }

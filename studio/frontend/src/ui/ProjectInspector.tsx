@@ -6,6 +6,7 @@ import { project, openDoc, deleteFile, duplicateFile, revealFile, renameTo, rena
 import { nav, remember } from "../state/nav.ts";
 import { basename, dirname, pretty, stripExt } from "../state/paths.ts";
 import { shell } from "../shell/shell.ts";
+import { DIRECTION_FILE } from "@fastart/core";
 import { kindOf } from "./kinds.ts";
 import { Button, Checkbox, InspectorSection, Property, SegmentedControl, TextField, middleTruncate } from "./ur.tsx";
 
@@ -93,6 +94,38 @@ export function ProjectInspector() {
 					</Property>
 				)}
 			</InspectorSection>
+			{project.direction.value ? (
+				<InspectorSection title="Direction" hint={`the project's art direction: ${DIRECTION_FILE} at its root; new assets start from it, fart lint checks it`}>
+					{project.direction.value.about && <div class="insp-hint flush">{project.direction.value.about}</div>}
+					{project.direction.value.roles && (
+						<Property label="Roles">
+							<span class="ur-prop-val">{Object.entries(project.direction.value.roles).map(([r, t]) => `${r}: ${t}`).join(" · ")}</span>
+						</Property>
+					)}
+					{project.direction.value.palette_refs?.length ? (
+						<Property label="Palettes">
+							<span class="ur-prop-val ur-mono">{project.direction.value.palette_refs.join(", ")}</span>
+						</Property>
+					) : null}
+					{(project.direction.value.references ?? []).map((r) => (
+						<Property label="Copy" title={r.for}>
+							<button type="button" class="ur-link" onClick={() => void openDoc(r.file)}>
+								{r.file}
+							</button>
+						</Property>
+					))}
+					{project.direction.value.avoid?.length ? (
+						<Property label="Avoid">
+							<span class="ur-prop-val">{project.direction.value.avoid.join(", ")}</span>
+						</Property>
+					) : null}
+					{project.directionIssues.value.length > 0 && <div class="insp-hint flush">{project.directionIssues.value.join("; ")}</div>}
+				</InspectorSection>
+			) : (
+				<InspectorSection title="Direction" hint={`a ${DIRECTION_FILE} at the project's root says the palette, roles, scale, light and rules every asset follows (spec/DIRECTION.md)`}>
+					<div class="insp-hint flush">No art direction yet</div>
+				</InspectorSection>
+			)}
 			{!sel && <div class="insp-hint">Click an asset to pick it · double-click to open it</div>}
 		</div>
 	);

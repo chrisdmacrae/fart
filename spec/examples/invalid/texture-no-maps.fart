@@ -3,10 +3,7 @@
   "textures": [
     {
       "name": "t",
-      "cell": [
-        1,
-        1
-      ],
+      "cell": [1, 1],
       "maps": {}
     }
   ]

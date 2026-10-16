@@ -1,3 +1,29 @@
-{"version": 1,
- "parts": [{"name": "upper", "pivot": [0, 0]}, {"name": "fore", "pivot": [5, 0], "anchors": [{"name": "hand", "at": [9, 0]}]}],
- "constraints": [{"name": "arm", "chain": ["upper", "fore"], "end": "fore/hand"}]}
+{
+  "version": 1,
+  "parts": [
+    {
+      "name": "upper",
+      "pivot": [0, 0]
+    },
+    {
+      "name": "fore",
+      "pivot": [5, 0],
+      "anchors": [
+        {
+          "name": "hand",
+          "at": [9, 0]
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "name": "arm",
+      "chain": [
+        "upper",
+        "fore"
+      ],
+      "end": "fore/hand"
+    }
+  ]
+}

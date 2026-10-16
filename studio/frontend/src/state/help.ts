@@ -42,14 +42,14 @@ export const topic = (id: string): Topic | undefined => TOPICS.find((t) => t.id 
 
 /** Where the person can be, and the topics that answer it, most to the point first. */
 export const CONTEXTS: Record<string, string[]> = {
-	browse: ["projects", "the-panels", "files-a-tool-refused", "serve"],
-	"2d.document": ["the-editor", "the-inspector", "colours", "textures", "glow", "saving-is-a-checkpoint"],
+	browse: ["projects", "the-project-s-direction", "the-panels", "files-a-tool-refused", "serve"],
+	"2d.document": ["the-editor", "the-inspector", "generated-assets", "colours", "textures", "glow", "saving-is-a-checkpoint"],
 	"2d.shape": ["the-editor", "colours", "shade", "textures", "clipboard-and-keys"],
 	"2d.part": ["parts-and-the-outline", "rigs", "states", "mirror-and-reuse", "sockets", "chains", "pinned-reach"],
 	"2d.clip": ["clips", "events-and-curves", "states"],
 	"2d.collision": ["the-collision-lens", "the-editor"],
 	palette: ["colours", "glow"],
-	"3d.document": ["3d-models", "the-inspector", "colours", "textures", "saving-is-a-checkpoint"],
+	"3d.document": ["3d-models", "the-inspector", "generated-assets", "colours", "textures", "saving-is-a-checkpoint"],
 	"3d.shape": ["3d-models", "shade", "textures", "colours"],
 	"3d.part": ["3d-models", "rigs", "states", "mirror-and-reuse"],
 	"3d.clip": ["clips", "events-and-curves", "3d-models"],
@@ -122,7 +122,7 @@ export const CATEGORIES: { id: string; title: string; topics: string[] }[] = [
 	{ id: "3d", title: "3D models", topics: ["3d-models", "shade", "textures"] },
 	{ id: "scenes", title: "Scenes", topics: ["scenes"] },
 	{ id: "game", title: "Collision and games", topics: ["the-collision-lens", "sockets", "events-and-curves", "serve"] },
-	{ id: "project", title: "Projects, files and setup", topics: ["projects", "saving-is-a-checkpoint", "files-a-tool-refused", "setup", "ask-claude", "appearance", "updates"] },
+	{ id: "project", title: "Projects, files and setup", topics: ["projects", "the-project-s-direction", "generated-assets", "saving-is-a-checkpoint", "files-a-tool-refused", "setup", "ask-claude", "appearance", "updates"] },
 ];
 
 export interface Hit {

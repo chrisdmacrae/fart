@@ -4,38 +4,22 @@
   "palette": [
     {
       "name": "shell",
-      "rgb": [
-        120,
-        100,
-        80,
-        255
-      ]
+      "rgb": [120, 100, 80, 255]
     },
     {
       "name": "claw",
-      "rgb": [
-        200,
-        180,
-        150,
-        255
-      ]
+      "rgb": [200, 180, 150, 255]
     }
   ],
   "parts": [
     {
       "name": "body",
-      "pivot": [
-        0,
-        0
-      ],
+      "pivot": [0, 0],
       "shapes": [
         {
           "kind": "circle",
           "color": "shell",
-          "at": [
-            0,
-            0
-          ],
+          "at": [0, 0],
           "r": 5
         }
       ]
@@ -43,32 +27,20 @@
     {
       "name": "claw_r",
       "parent": "body",
-      "pivot": [
-        5,
-        0
-      ],
+      "pivot": [5, 0],
       "shapes": [
         {
           "kind": "line",
           "color": "claw",
-          "a": [
-            5,
-            0
-          ],
-          "b": [
-            9,
-            -2
-          ],
+          "a": [5, 0],
+          "b": [9, -2],
           "w": 1.5
         }
       ],
       "anchors": [
         {
           "name": "tip",
-          "at": [
-            9,
-            -2
-          ],
+          "at": [9, -2],
           "angle": -0.46
         }
       ]
@@ -77,10 +49,7 @@
       "name": "claw_l",
       "like": "claw_r",
       "parent": "body",
-      "pivot": [
-        5,
-        0
-      ]
+      "pivot": [5, 0]
     }
   ],
   "states": [
@@ -96,10 +65,7 @@
         {
           "part": "claw_l",
           "mirror": true,
-          "offset": [
-            -5,
-            0
-          ]
+          "offset": [-5, 0]
         }
       ]
     },
@@ -116,10 +82,7 @@
         {
           "part": "claw_l",
           "mirror": true,
-          "offset": [
-            -5,
-            0
-          ],
+          "offset": [-5, 0],
           "rotate": 0.6
         }
       ]
@@ -138,12 +101,7 @@
           "t": 0.15,
           "state": "snap",
           "ease": "out",
-          "curve": [
-            0.34,
-            1.56,
-            0.64,
-            1
-          ],
+          "curve": [0.34, 1.56, 0.64, 1],
           "events": [
             "snap"
           ]

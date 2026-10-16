@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "say": "x",
+      "check": "colours.lovely"
+    }
+  ]
+}

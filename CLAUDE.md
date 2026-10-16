@@ -61,7 +61,19 @@ follow the spec, never the other way round.
   in the frontend. `FASTART_VERSION=0.1.0` makes a build believe it is
   old; `FASTART_LIVE=1 go test -run TestUpdateLive ./studio` talks to
   GitHub for real.
-- Writing `.fart` files: follow `skills/fastart/SKILL.md`.
+- Writing `.fart` files: follow `skills/fastart/SKILL.md` (a short core;
+  `references/*.md` for 3D, textures, scenes, loaders). The agent path
+  (`spec/TOOLING.md`): `fart outline` / `get_document` first, edits by
+  `apply_patch` (name-addressed, `core/patch.ts`) or the verbs in
+  `core/verbs.ts` (`pose`, `morph`, `setClip`, `make`), generators with
+  `@fastart/make` (`packages/make`) kept in `assets/gen/` and rerun by
+  Uranus (meta.gen → Regenerate), `stringifyDoc` writes inline number
+  arrays (`fart fmt` reformats), `fart tokens` measures.
+- Art direction (`spec/DIRECTION.md`): `style.gas` at a project's
+  root (`core/direction.ts`: merge, `extends`, `classes`, the fixed
+  checks, `lintDirection`); `fart lint`, `fart new --class`, the
+  `get_direction` tool, the Direction panel in the project inspector.
+  The extension is one constant (`DIRECTION_EXT`) in case the name changes.
 - Scenes: `.shart` (Scene Hierarchy of Art), `spec/SHART.md` +
   `spec/shart.schema.json`, shart cases in the corpus manifest carry
   `"shart": true`. Core: `scene.ts` (validateScene, loadScene,

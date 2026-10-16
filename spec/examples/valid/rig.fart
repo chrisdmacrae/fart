@@ -2,12 +2,61 @@
   "version": 1,
   "name": "hero",
   "parts": [
-    {"name": "torso", "pivot": [0, 0]},
-    {"name": "arm_l", "pivot": [-3, -4], "anchors": [{"name": "hand", "at": [-6, 2]}]},
-    {"name": "arm_r", "pivot": [3, -4], "anchors": [{"name": "hand", "at": [6, 2]}]}
+    {
+      "name": "torso",
+      "pivot": [0, 0]
+    },
+    {
+      "name": "arm_l",
+      "pivot": [-3, -4],
+      "anchors": [
+        {
+          "name": "hand",
+          "at": [-6, 2]
+        }
+      ]
+    },
+    {
+      "name": "arm_r",
+      "pivot": [3, -4],
+      "anchors": [
+        {
+          "name": "hand",
+          "at": [6, 2]
+        }
+      ]
+    }
   ],
   "states": [
-    {"name": "idle", "parts": [{"part": "arm_l"}, {"part": "torso"}, {"part": "arm_r"}]},
-    {"name": "wave", "parts": [{"part": "arm_l"}, {"part": "torso"}, {"part": "arm_r", "rotate": -1.2, "scale": 1.1}]}
+    {
+      "name": "idle",
+      "parts": [
+        {
+          "part": "arm_l"
+        },
+        {
+          "part": "torso"
+        },
+        {
+          "part": "arm_r"
+        }
+      ]
+    },
+    {
+      "name": "wave",
+      "parts": [
+        {
+          "part": "arm_l"
+        },
+        {
+          "part": "torso"
+        },
+        {
+          "part": "arm_r",
+          "rotate": -1.2,
+          "scale": 1.1
+        }
+      ]
+    }
   ]
 }

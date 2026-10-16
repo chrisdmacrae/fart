@@ -1,5 +1,22 @@
 {
   "version": 1,
-  "palette": [{"name": "ink", "rgb": [0, 0, 0, 255]}],
-  "parts": [{"name": "body", "shapes": [{"kind": "line", "color": "ink", "a": [0, 0], "b": [4, 0]}]}]
+  "palette": [
+    {
+      "name": "ink",
+      "rgb": [0, 0, 0, 255]
+    }
+  ],
+  "parts": [
+    {
+      "name": "body",
+      "shapes": [
+        {
+          "kind": "line",
+          "color": "ink",
+          "a": [0, 0],
+          "b": [4, 0]
+        }
+      ]
+    }
+  ]
 }

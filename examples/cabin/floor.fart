@@ -4,21 +4,13 @@
   "palette": [
     {
       "name": "wood",
-      "rgb": [
-        140,
-        100,
-        60,
-        255
-      ]
+      "rgb": [140, 100, 60, 255]
     }
   ],
   "textures": [
     {
       "name": "planks",
-      "cell": [
-        8,
-        8
-      ],
+      "cell": [8, 8],
       "maps": {
         "color": {
           "ref": "textures/planks.fart"
@@ -29,60 +21,27 @@
   "parts": [
     {
       "name": "floor",
-      "pivot": [
-        0,
-        0
-      ],
+      "pivot": [0, 0],
       "shapes": [
         {
           "kind": "poly",
           "color": "wood",
           "texture": "planks",
           "mapping": {
-            "at": [
-              2,
-              0
-            ],
+            "at": [2, 0],
             "angle": 0.3,
             "scale": 1.5
           },
-          "points": [
-            [
-              -10,
-              -6
-            ],
-            [
-              10,
-              -6
-            ],
-            [
-              10,
-              6
-            ],
-            [
-              -10,
-              6
-            ]
-          ]
+          "points": [[-10, -6], [10, -6], [10, 6], [-10, 6]]
         },
         {
           "kind": "circle",
           "color": "wood",
           "texture": "planks",
           "mapping": {
-            "xf": [
-              1,
-              0,
-              0,
-              1,
-              3,
-              3
-            ]
+            "xf": [1, 0, 0, 1, 3, 3]
           },
-          "at": [
-            14,
-            0
-          ],
+          "at": [14, 0],
           "r": 3
         }
       ]

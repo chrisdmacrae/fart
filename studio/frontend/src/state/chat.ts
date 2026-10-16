@@ -90,6 +90,14 @@ function describeTool(name: string, input: string): string | null {
 		case "mcp__uranus__render":
 			if (Array.isArray(args.views) && args.views.length) return `looked at the model from ${args.views.join(", ")}`;
 			return `looked at ${typeof args.clip === "string" ? `clip ${args.clip}${typeof args.t === "number" ? ` at ${args.t}s` : ""}` : typeof args.state === "string" ? `state ${args.state}` : "the canvas"}`;
+		case "mcp__uranus__apply_patch":
+		case "mcp__uranus__pose":
+		case "mcp__uranus__morph":
+		case "mcp__uranus__clip":
+		case "mcp__uranus__make":
+			return null; // the note says what changed
+		case "mcp__uranus__get_direction":
+			return "read the art direction";
 		case "mcp__uranus__validate":
 			return "validated";
 		case "mcp__uranus__open_file":

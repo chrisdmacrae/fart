@@ -2,9 +2,22 @@
   "version": 1,
   "name": "base",
   "palette": [
-    {"name": "wood",  "rgb": [160, 110, 60, 255]},
-    {"name": "steel", "rgb": [180, 190, 200, 255]},
-    {"name": "leaf",  "rgb": [90, 170, 90, 255]},
-    {"name": "glow",  "rgb": [255, 220, 120, 255], "emissive": 0.8}
+    {
+      "name": "wood",
+      "rgb": [160, 110, 60, 255]
+    },
+    {
+      "name": "steel",
+      "rgb": [180, 190, 200, 255]
+    },
+    {
+      "name": "leaf",
+      "rgb": [90, 170, 90, 255]
+    },
+    {
+      "name": "glow",
+      "rgb": [255, 220, 120, 255],
+      "emissive": 0.8
+    }
   ]
 }

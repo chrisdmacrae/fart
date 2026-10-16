@@ -73,8 +73,89 @@ type MCP struct {
 var mcpTools = []map[string]any{
 	{
 		"name":        "get_document",
-		"description": "The document open in Uranus: its path, its JSON (a .fart, format 1.x), what is selected (part and shapes), and the state or clip on the canvas. With no file open, the project's file list instead.",
-		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		"description": "The document open in Uranus, at the detail asked for: outline (the default: every part, state, clip, token and count as text, a few hundred tokens; read this first), lean (the JSON without bakes), full (the JSON as saved), or one part by name. Also what is selected and the state or clip on the canvas. With no file open, the project's file list.",
+		"inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"detail": map[string]any{"type": "string", "enum": []string{"outline", "lean", "full"}, "description": "how much of the document; outline unless you need geometry"},
+				"part":   map[string]any{"type": "string", "description": "one part by name, lean"},
+			},
+		},
+	},
+	{
+		"name":        "apply_patch",
+		"description": "Change the open document with RFC 6902 operations (add, remove, replace, move, copy, test) whose paths address things by NAME: /parts/hull/pivot, /parts/hull/shapes/2/points/4, /states/open/parts/lid/rotate, /clips/walk/keys/2/t, /palette/ink/rgb, /textures/plating/cell, /constraints/arm/chain; numbers are indices, - appends. Validated, one undo step, the canvas updates. Prefer this to apply_document for any change to an open file; never write tris or bake.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"ops"},
+			"properties": map[string]any{
+				"ops":  map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{"op": map[string]any{"type": "string", "enum": []string{"add", "remove", "replace", "move", "copy", "test"}}, "path": map[string]any{"type": "string"}, "from": map[string]any{"type": "string"}, "value": map[string]any{}}, "required": []string{"op", "path"}}},
+				"note": map[string]any{"type": "string", "description": "one line on what changed, shown to the user"},
+			},
+		},
+	},
+	{
+		"name":        "pose",
+		"description": "Pose a part in a state of the open document: where its pivot lands (offset), its turn (rotate: radians, a number in 2D or [x, y, z] in 3D), scale, mirror; or remove it from the state. The part joins the state at rest if it was not in it.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"state", "part"},
+			"properties": map[string]any{
+				"state":  map[string]any{"type": "string"},
+				"part":   map[string]any{"type": "string"},
+				"offset": map[string]any{"type": "array", "items": map[string]any{"type": "number"}},
+				"rotate": map[string]any{"description": "radians: a number (2D) or [x, y, z] (3D)"},
+				"scale":  map[string]any{"type": "number"},
+				"mirror": map[string]any{"type": "boolean"},
+				"remove": map[string]any{"type": "boolean"},
+				"note":   map[string]any{"type": "string"},
+			},
+		},
+	},
+	{
+		"name":        "morph",
+		"description": "Reshape a part's poly, path or mesh in a state (a morph, 1.6: clips lerp the corners): give every point (points), or deltas for some points by index (moves: {\"3\": [0, -1]}), or a scale about the shape's centre (scale: 1.1 or [sx, sy, sz]); reset forgets it. The shape is an index into the part's shapes (see the outline).",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"state", "part", "shape"},
+			"properties": map[string]any{
+				"state":  map[string]any{"type": "string"},
+				"part":   map[string]any{"type": "string"},
+				"shape":  map[string]any{"type": "integer"},
+				"points": map[string]any{"type": "array"},
+				"moves":  map[string]any{"type": "object"},
+				"scale":  map[string]any{},
+				"reset":  map[string]any{"type": "boolean"},
+				"note":   map[string]any{"type": "string"},
+			},
+		},
+	},
+	{
+		"name":        "clip",
+		"description": "Make or replace a clip of the open document from keys: a string like \"0:idle 0.3:squash 0.6:stretch!land 1:idle\" (t:state, !event), or a list of {t, state, ease, events}. States must exist.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"name", "keys"},
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+				"keys": map[string]any{"description": "a string of t:state words, or a list of key objects"},
+				"loop": map[string]any{"type": "boolean"},
+				"note": map[string]any{"type": "string"},
+			},
+		},
+	},
+	{
+		"name":        "make",
+		"description": "Add a shape to a part from a recipe: 2D ellipse {at, rx, ry}, roundedRect {at, w, h, r}, star {at, points, r1, r2}, ngon {at, sides, r}; 3D box {at, size}, ball {at, r}, rod {a, b, w}, lathe {profile: [[radius, along], ...], axis, segments, smooth}, extrude {profile: [[u, v], ...], axis, from, to}. Every recipe takes kind and color (a palette token). Curved recipes come out as paths or sweeps, so they stay editable.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"part", "recipe"},
+			"properties": map[string]any{
+				"part":   map[string]any{"type": "string"},
+				"recipe": map[string]any{"type": "object"},
+				"note":   map[string]any{"type": "string"},
+			},
+		},
 	},
 	{
 		"name":        "apply_document",
@@ -90,7 +171,7 @@ var mcpTools = []map[string]any{
 	},
 	{
 		"name":        "render",
-		"description": "A PNG of the open document: a named state, or a clip at a time in seconds, or what is on the canvas when neither is given. A 3D model can be looked at from a named view, or from several in one call (views: an image each, in order): look from front, left, top and three-quarter before and after reshaping a mesh. Look before and after a change.",
+		"description": "A PNG of the open document: a named state, or a clip at a time in seconds, or what is on the canvas when neither is given; or a contact sheet (sheet: states for every state in one image, sheet: clip for a clip's frames in a row). A 3D model can be looked at from a named view, or from several in one call (views: an image each, in order): look from front, left, top and three-quarter before and after reshaping a mesh. Look before and after a change.",
 		"inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -101,6 +182,8 @@ var mcpTools = []map[string]any{
 				"view":  map[string]any{"type": "string", "enum": meshViews, "description": "3D models: the view to look from; absent, the canvas's own"},
 			"path":  map[string]any{"type": "string", "description": "another 3D model of the project, by its project-relative path, looked at without opening it: drawn from its compiled sidecar (built first if missing or stale). state, view, views and size apply; absent, the open document"},
 				"views": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": meshViews}, "description": "3D models: several views in one call, e.g. [\"front\", \"left\", \"top\", \"three-quarter\"]"},
+				"sheet":  map[string]any{"type": "string", "enum": []string{"states", "clip"}, "description": "tile every state, or a clip's frames, into one image"},
+				"frames": map[string]any{"type": "integer", "description": "frames in a clip sheet, default 8"},
 			},
 		},
 	},
@@ -111,6 +194,11 @@ var mcpTools = []map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"doc": map[string]any{"type": "object"}},
 		},
+	},
+	{
+		"name":        "get_direction",
+		"description": "The project's art direction (style.gas at its root), merged with what it extends: the statement, palette refs, roles, scale, line, shapes, light, motion, names, references to copy from, rules, avoid. Read it before designing anything new; null when the project has none.",
+		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 	},
 	{
 		"name":        "open_file",

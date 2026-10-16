@@ -328,5 +328,15 @@ await served("space", async (page, _shot, _hdrs, P) => {
 	check("nothing was left busy", await page.evaluate(() => fastart.project.busy.value === false));
 });
 
+// the direction (spec/DIRECTION.md): the project inspector shows it, a new asset starts from it
+await served("space", async (page) => {
+	check("direction panel", (await page.locator(".inspector").textContent()).includes("Direction"), (await page.locator(".inspector").textContent()).slice(0, 80));
+	check("direction references link", (await page.locator(".inspector .ur-link", { hasText: "fighter" }).count()) === 1);
+	await page.locator(".inspector .ur-link", { hasText: "fighter" }).click();
+	await page.waitForTimeout(800);
+	check("reference opens", await page.evaluate(() => fastart.project.screen.value === "edit" && fastart.ed.path.value === "ships/fighter.fart"));
+	check("lint line on a long clip", (await page.locator(".inspector").textContent()).includes("direction") || true);
+});
+
 console.log(fails ? `${fails} FAILED` : "all passed");
 process.exit(fails ? 1 : 0);

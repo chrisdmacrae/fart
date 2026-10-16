@@ -27,6 +27,9 @@ import { stringifyDoc } from "./parse.ts";
 import { as3d, type Doc, type Vec3 } from "./types.ts";
 import { bakeTris3 } from "./space3.ts";
 import { bakeSurfaces } from "./solids.ts";
+import { outlineDoc, leanDoc } from "./outline.ts";
+import { DIRECTION_FILE, loadDirection, lintDirection, validateDirection, directionDefaults, classOf, type Direction } from "./direction.ts";
+import { dirname as pdirname, resolve as presolve, relative as prelative } from "node:path";
 import { DEFAULT_AMBIENT, DEFAULT_FPS, DEFAULT_LIGHT, VIEWS, projectDoc } from "./project.ts";
 import { buildSidecar, sidecarFresh, sidecarPath, toGlb } from "./gltf.ts";
 import { setHull } from "./collision.ts";
@@ -178,7 +181,200 @@ async function bakeCmd(args: string[]): Promise<number> {
 	return bad ? 1 : 0;
 }
 
+/** The direction a folder is under: the nearest direction file at or above it. */
+async function findDirection(start: string, explicit?: string): Promise<{ file: string; direction: Direction; unresolved: string[] } | null> {
+	let file = explicit;
+	if (!file) {
+		let dir = presolve(start);
+		try {
+			if (!(await stat(dir)).isDirectory()) dir = pdirname(dir);
+		} catch {
+			return null;
+		}
+		for (let i = 0; i < 8 && !file; i++) {
+			const cand = join(dir, DIRECTION_FILE);
+			try {
+				await stat(cand);
+				file = cand;
+			} catch {
+				const parent = pdirname(dir);
+				if (parent === dir) break;
+				dir = parent;
+			}
+		}
+	}
+	if (!file) return null;
+	const text = await readFile(file, "utf8");
+	const errs = validateDirection(JSON.parse(text));
+	if (errs.length) {
+		console.log(`${file}: ${errs.join("; ")}`);
+		return null;
+	}
+	const base = pdirname(file);
+	const { direction, unresolved } = await loadDirection(text, async (ref) => {
+		try {
+			return await readFile(presolve(base, ref), "utf8");
+		} catch {
+			return null;
+		}
+	});
+	return { file, direction, unresolved };
+}
+
+/** fart lint: every asset below against the project's direction (advisory). */
+async function lintCmd(args: string[]): Promise<number> {
+	let explicit: string | undefined;
+	const paths: string[] = [];
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--direction") explicit = args[++i];
+		else paths.push(args[i]);
+	}
+	if (!paths.length) paths.push(".");
+	const found = await findDirection(paths[0], explicit);
+	if (!found) {
+		console.log(`no ${DIRECTION_FILE} at or above ${paths[0]} (give one with --direction)`);
+		return 2;
+	}
+	console.log(`direction: ${found.file}${found.unresolved.length ? ` (could not read ${found.unresolved.join(", ")})` : ""}`);
+	const root = pdirname(found.file);
+	const files = (await collect(paths)).filter((f) => f.endsWith(".fart"));
+	let hits = 0;
+	for (const file of files) {
+		const { doc } = await check(file);
+		if (!doc) continue;
+		const rel = prelative(root, file).split("\\").join("/");
+		const lints = lintDirection(found.direction, doc, rel);
+		if (!lints.length) continue;
+		hits += lints.length;
+		console.log(`${rel} (${classOf(doc, rel) ?? "no class"}):`);
+		for (const l of lints) console.log(`  ${l.code} ${l.path}: ${l.message}`);
+	}
+	console.log(`${files.length} files, ${hits} lints`);
+	return 0;
+}
+
+/** fart new: an asset that starts from the direction (palette refs, a part, a state), named and placed. */
+async function newCmd(args: string[]): Promise<number> {
+	let cls: string | undefined;
+	let space3 = false;
+	const rest: string[] = [];
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--class") cls = args[++i];
+		else if (args[i] === "--3d") space3 = true;
+		else rest.push(args[i]);
+	}
+	const target = rest[0];
+	if (!target) {
+		console.log("usage: fart new <path/name[.fart]> [--class c] [--3d]");
+		return 2;
+	}
+	const file = target.endsWith(".fart") ? target : `${target}.fart`;
+	const found = await findDirection(pdirname(presolve(file)));
+	const name = file.split("/").pop()!.replace(/\.fart$/, "");
+	const doc: Record<string, unknown> = { version: 1, ...(space3 ? { space: "3d" } : {}), name };
+	if (found) {
+		const defaults = directionDefaults(found.direction, cls);
+		if (defaults.palette_refs?.length) {
+			// the refs as the direction wrote them are relative to its root; make them relative to the new file
+			const rootAbs = pdirname(found.file);
+			doc.palette_refs = defaults.palette_refs.map((r) => prelative(pdirname(presolve(file)), presolve(rootAbs, r)).split("\\").join("/"));
+		}
+	}
+	if (!doc.palette_refs) doc.palette = [{ name: "ink", rgb: [40, 40, 44, 255] }];
+	doc.parts = [{ name: "body", pivot: space3 ? [0, 0, 0] : [0, 0], shapes: [] }];
+	doc.states = [{ name: "idle", parts: [{ part: "body" }] }];
+	if (cls) doc.meta = { class: cls };
+	await mkdir(pdirname(presolve(file)), { recursive: true });
+	await writeFile(file, stringifyDoc(doc));
+	console.log(`wrote ${file}${found ? ` (from ${prelative(process.cwd(), found.file)})` : ""}`);
+	return 0;
+}
+
+/** fart fmt: rewrite files in the canonical layout (inline number arrays), in place; invalid files are left alone. */
+async function fmtCmd(args: string[]): Promise<number> {
+	const files = await collect(args);
+	let bad = 0;
+	for (const file of files) {
+		let text: string;
+		try {
+			text = await readFile(file, "utf8");
+		} catch {
+			continue;
+		}
+		let raw: unknown;
+		try {
+			raw = JSON.parse(text);
+		} catch {
+			console.log(`skip ${file}: not JSON`);
+			bad++;
+			continue;
+		}
+		const out = stringifyDoc(raw as object);
+		if (out !== text) {
+			await writeFile(file, out);
+			console.log(`formatted ${file}`);
+		}
+	}
+	return bad ? 1 : 0;
+}
+
+/** fart outline: the outline of each file, the view an agent reads first. */
+async function outlineCmd(args: string[]): Promise<number> {
+	const files = await collect(args);
+	for (const file of files) {
+		if (file.endsWith(".shart")) continue;
+		const { doc, lines } = await check(file);
+		if (!doc) {
+			console.log(`${file}: not valid`);
+			for (const l of lines) console.log(l);
+			continue;
+		}
+		console.log(outlineDoc(doc, file));
+		console.log();
+	}
+	return 0;
+}
+
+/** fart tokens: what each file costs to read, as written, lean, and as an outline (Anthropic's tokenizer when installed, else a chars/3.2 estimate). */
+async function tokensCmd(args: string[]): Promise<number> {
+	let count: (s: string) => number = (s) => Math.round(s.length / 3.2);
+	let how = "estimated at 3.2 chars per token";
+	try {
+		const name = "@anthropic-ai/tokenizer"; // optional: a variable keeps the type checker from needing it
+		const mod = (await import(name)) as { countTokens: (s: string) => number };
+		count = mod.countTokens;
+		how = "Anthropic's tokenizer";
+	} catch {
+		// the estimate will do
+	}
+	const files = await collect(args);
+	let tot = [0, 0, 0];
+	console.log(`tokens (${how}): as written · lean (no bakes) · outline`);
+	for (const file of files) {
+		const text = await readFile(file, "utf8");
+		let raw: unknown;
+		try {
+			raw = JSON.parse(text);
+		} catch {
+			continue;
+		}
+		const is = file.endsWith(".shart");
+		const a = count(text);
+		const b = count(stringifyDoc(leanDoc(raw as object)));
+		const c = is ? 0 : count(outlineDoc(raw as never, file));
+		tot = [tot[0] + a, tot[1] + b, tot[2] + c];
+		console.log(`${String(a).padStart(7)} ${String(b).padStart(7)} ${String(c).padStart(7)}  ${file}`);
+	}
+	if (files.length > 1) console.log(`${String(tot[0]).padStart(7)} ${String(tot[1]).padStart(7)} ${String(tot[2]).padStart(7)}  total (${files.length} files)`);
+	return 0;
+}
+
 const USAGE = `usage: fart validate <file|dir>...
+       fart fmt <file|dir>...                     rewrite in the canonical layout (inline number arrays), in place
+       fart outline <file|dir>...                 what an agent reads first: names, counts, keys
+       fart tokens <file|dir>...                  what each file costs to read: as written, lean, outline
+       fart lint [dir] [--direction file]         every asset against the project's direction (style.gas at the root), advisory
+       fart new <path/name> [--class c] [--3d]     an asset that starts from the direction
        fart bake [--smooth] <file>...             tris into every poly or mesh and bakes into every path; --smooth: the surfaces of smooth, modified and swept shapes too
        fart bake --textures <dir> [--px n] <file>...   every texture map as a PNG, plus .normal.png (a relief) and .orm.png (ao, rough, metal)
        fart gltf <3d.fart> [-o out.glb] [--fps n] [--px n]   --px: the width of each texture's images (64)
@@ -501,6 +697,21 @@ const [cmd, ...rest] = process.argv.slice(2);
 let code = 2;
 try {
 	switch (cmd) {
+		case "fmt":
+			code = await fmtCmd(rest);
+			break;
+		case "lint":
+			code = await lintCmd(rest);
+			break;
+		case "new":
+			code = await newCmd(rest);
+			break;
+		case "outline":
+			code = await outlineCmd(rest);
+			break;
+		case "tokens":
+			code = await tokensCmd(rest);
+			break;
 		case "validate":
 			code = await validateCmd(rest);
 			break;

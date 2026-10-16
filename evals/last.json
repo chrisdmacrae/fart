@@ -1,0 +1,25 @@
+{
+  "when": "2026-10-04T21:16:31.388Z",
+  "model": "default",
+  "results": [
+    {
+      "id": "outline-only",
+      "ok": true,
+      "why": "",
+      "turns": 6,
+      "secs": 20,
+      "in": 10,
+      "out": 988,
+      "cacheRead": 119639,
+      "cacheWrite": 17834,
+      "cost": 0.186
+    }
+  ],
+  "total": {
+    "turns": 6,
+    "out": 988,
+    "in": 10,
+    "cost": 0.186,
+    "ok": 1
+  }
+}

@@ -18,6 +18,7 @@ import { openDocNow } from "./doc.ts";
 import { basename, dirname, joinRel, under, stripExt } from "./paths.ts";
 import { refreshSetup } from "./setup.ts";
 import { sidebar } from "./sidebar.ts";
+import { loadDirection, lintDirection, validateDirection, DIRECTION_FILE, type Direction, type Lint } from "@fastart/core";
 
 /**
  * Which screen is up. "welcome" is the launcher; "browse" is a project with
@@ -77,6 +78,9 @@ export const project = {
 	recentBranches: signal<Record<string, string>>({}),
 	/** the window is full screen: the traffic lights are hidden, and so is the room left for them */
 	fullscreen: signal(false),
+	/** the project's art direction (direction.start at the root), merged; null when it has none */
+	direction: signal<Direction | null>(null),
+	directionIssues: signal<string[]>([]),
 };
 
 const LAUNCH_KEY = "fastart.launcher";
@@ -101,6 +105,57 @@ export function setShowLauncher(on: boolean) {
 /** The traffic lights sit inline (the app on a Mac, out of full screen): the header they sit in leaves them room. */
 export function inlineLights(): boolean {
 	return project.caps.value.os === "darwin" && !project.fullscreen.value;
+}
+
+
+/** Read the project's direction, extends resolved. */
+export async function refreshDirection() {
+	const root = project.root.value;
+	if (root === null) return;
+	const text = await shell.readFile(root, DIRECTION_FILE);
+	if (text === null) {
+		project.direction.value = null;
+		project.directionIssues.value = [];
+		return;
+	}
+	let raw: unknown = null;
+	try {
+		raw = JSON.parse(text);
+	} catch {
+		raw = null;
+	}
+	const errs = validateDirection(raw);
+	if (errs.length) {
+		project.direction.value = null;
+		project.directionIssues.value = errs;
+		return;
+	}
+	const { direction, unresolved, errors } = await loadDirection(text, (ref) => shell.readFile(root, ref));
+	project.direction.value = direction;
+	project.directionIssues.value = [...errors, ...unresolved.map((u) => `could not read ${u}`)];
+}
+
+/** The direction's lints for a document at a project path, [] without a direction. */
+export function directionLints(doc: Parameters<typeof lintDirection>[1], rel: string): Lint[] {
+	const d = project.direction.value;
+	return d ? lintDirection(d, doc, rel) : [];
+}
+
+/** Rerun the generator an asset came from (meta.gen, relative to the asset), then re-read. */
+export async function regenerate(rel: string, gen: string): Promise<string | null> {
+	const root = project.root.value;
+	if (root === null) return null;
+	const genRel = joinRel(dirname(rel), gen);
+	try {
+		const out = await shell.runGenerator(root, genRel);
+		await refreshFiles();
+		const open = ed.path.value ?? md.path.value ?? sc.path.value;
+		if (open) await openDoc(open);
+		return out || "regenerated";
+	} catch (e) {
+		project.error.value = `generator failed: ${String(e)}`;
+		return null;
+	}
 }
 
 /** In a project (an asset open or not), as opposed to the launcher, docs or setup. */
@@ -311,6 +366,7 @@ export async function openProject(root: string) {
 	await showBrowser();
 	void refreshSetup();
 	void refreshBranch();
+	void refreshDirection();
 }
 
 /**
@@ -601,6 +657,7 @@ export async function refreshFiles(quiet = false) {
 	if (!quiet) project.busy.value = true;
 	// the stamp is taken before the list: a change that lands between the two is seen again by the next tick, never missed
 	const stamp = await shell.stamp(root).catch(() => "");
+	void refreshDirection();
 	const files = await shell.listFiles(root);
 	if (root !== project.root.value) return;
 	watchRoot = root;
@@ -763,10 +820,32 @@ export async function newPalette(name: string, open = true): Promise<string | nu
 
 export async function newFile(name: string) {
 	const rel = placed(name.endsWith(".fart") ? name : `${name}.fart`);
+	const root = project.root.value;
+	const d = project.direction.value;
+	if (root !== null && d?.palette_refs?.length && !project.files.value.includes(rel)) {
+		// an asset starts from the direction: its palette refs, relative to the new file
+		const refs = d.palette_refs.map((r) => relRef(dirname(rel), r));
+		const doc = { version: 1, name: basename(rel).replace(/\.fart$/, ""), palette_refs: refs, parts: [{ name: "body", pivot: [0, 0], shapes: [] }], states: [{ name: "idle", parts: [{ part: "body" }] }] };
+		try {
+			await shell.writeFile(root, rel, stringifyDoc(doc));
+		} catch (e) {
+			project.error.value = `could not write ${rel}: ${String(e)}`;
+			return;
+		}
+		await refreshFiles();
+		await openDoc(rel);
+		return;
+	}
 	if (await openDoc(rel)) {
 		await save();
 		await refreshFiles();
 	}
+}
+
+/** A project-root-relative path as a path relative to a folder (../ as needed). */
+function relRef(fromDir: string, target: string): string {
+	const up = fromDir ? fromDir.split("/").filter(Boolean).map(() => "..") : [];
+	return [...up, target].join("/");
 }
 
 // ------------------------------------------------------------- file ops

@@ -152,6 +152,9 @@ export class WailsShell implements Shell {
 	switchBranch(dir: string, name: string) {
 		return Project.SwitchBranch(dir, name);
 	}
+	runGenerator(root: string, rel: string) {
+		return Project.RunGenerator(root, rel);
+	}
 	newBranch(dir: string, name: string) {
 		return Project.NewBranch(dir, name);
 	}

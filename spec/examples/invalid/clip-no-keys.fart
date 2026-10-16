@@ -1,1 +1,9 @@
-{"version": 1, "clips": [{"name": "c", "keys": []}]}
+{
+  "version": 1,
+  "clips": [
+    {
+      "name": "c",
+      "keys": []
+    }
+  ]
+}

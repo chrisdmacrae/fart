@@ -1,1 +1,13 @@
-{"version": 1, "palette": [{"name": "ink", "rgb": [0, 0, 0, 255]}, {"name": "ink", "rgb": [9, 9, 9, 255]}]}
+{
+  "version": 1,
+  "palette": [
+    {
+      "name": "ink",
+      "rgb": [0, 0, 0, 255]
+    },
+    {
+      "name": "ink",
+      "rgb": [9, 9, 9, 255]
+    }
+  ]
+}

@@ -2,45 +2,180 @@
   "version": 1,
   "name": "hero",
   "palette": [
-    {"name": "skin", "rgb": [230, 190, 160, 255]},
-    {"name": "cloth", "rgb": [80, 110, 170, 255]}
+    {
+      "name": "skin",
+      "rgb": [230, 190, 160, 255]
+    },
+    {
+      "name": "cloth",
+      "rgb": [80, 110, 170, 255]
+    }
   ],
   "parts": [
-    {"name": "torso", "pivot": [0, 0], "shapes": [
-      {"kind": "poly", "color": "cloth", "points": [[-4, -8], [4, -8], [4, 4], [-4, 4]], "tris": [0, 1, 2, 0, 2, 3]}
-    ]},
-    {"name": "head", "parent": "torso", "pivot": [0, -8], "shapes": [
-      {"kind": "circle", "color": "skin", "at": [0, -11], "r": 3}
-    ]},
-    {"name": "upper_l", "parent": "torso", "pivot": [4, -6], "shapes": [
-      {"kind": "line", "color": "cloth", "a": [4, -6], "b": [9, -3], "w": 2}
-    ]},
-    {"name": "fore_l", "parent": "upper_l", "pivot": [9, -3], "shapes": [
-      {"kind": "line", "color": "skin", "a": [9, -3], "b": [12, 1], "w": 1.8}
-    ], "anchors": [{"name": "hand", "at": [12, 1]}]}
+    {
+      "name": "torso",
+      "pivot": [0, 0],
+      "shapes": [
+        {
+          "kind": "poly",
+          "color": "cloth",
+          "points": [[-4, -8], [4, -8], [4, 4], [-4, 4]],
+          "tris": [0, 1, 2, 0, 2, 3]
+        }
+      ]
+    },
+    {
+      "name": "head",
+      "parent": "torso",
+      "pivot": [0, -8],
+      "shapes": [
+        {
+          "kind": "circle",
+          "color": "skin",
+          "at": [0, -11],
+          "r": 3
+        }
+      ]
+    },
+    {
+      "name": "upper_l",
+      "parent": "torso",
+      "pivot": [4, -6],
+      "shapes": [
+        {
+          "kind": "line",
+          "color": "cloth",
+          "a": [4, -6],
+          "b": [9, -3],
+          "w": 2
+        }
+      ]
+    },
+    {
+      "name": "fore_l",
+      "parent": "upper_l",
+      "pivot": [9, -3],
+      "shapes": [
+        {
+          "kind": "line",
+          "color": "skin",
+          "a": [9, -3],
+          "b": [12, 1],
+          "w": 1.8
+        }
+      ],
+      "anchors": [
+        {
+          "name": "hand",
+          "at": [12, 1]
+        }
+      ]
+    }
   ],
   "states": [
-    {"name": "idle", "parts": [{"part": "torso"}, {"part": "head"}, {"part": "upper_l"}, {"part": "fore_l"}]},
-    {"name": "wave", "parts": [
-      {"part": "torso", "rotate": 0.1},
-      {"part": "head", "rotate": -0.2},
-      {"part": "upper_l", "rotate": -1.9},
-      {"part": "fore_l", "rotate": -0.6}
-    ]}
+    {
+      "name": "idle",
+      "parts": [
+        {
+          "part": "torso"
+        },
+        {
+          "part": "head"
+        },
+        {
+          "part": "upper_l"
+        },
+        {
+          "part": "fore_l"
+        }
+      ]
+    },
+    {
+      "name": "wave",
+      "parts": [
+        {
+          "part": "torso",
+          "rotate": 0.1
+        },
+        {
+          "part": "head",
+          "rotate": -0.2
+        },
+        {
+          "part": "upper_l",
+          "rotate": -1.9
+        },
+        {
+          "part": "fore_l",
+          "rotate": -0.6
+        }
+      ]
+    }
   ],
   "clips": [
-    {"name": "wave", "loop": true, "keys": [
-      {"t": 0, "state": "idle"},
-      {"t": 0.3, "state": "wave", "ease": "in-out"},
-      {"t": 0.6, "state": "idle", "ease": "in-out"}
-    ]},
-    {"name": "nod", "keys": [
-      {"t": 0, "state": "idle"},
-      {"t": 0.2, "parts": [{"part": "torso"}, {"part": "head", "rotate": 0.4}, {"part": "upper_l"}, {"part": "fore_l"}], "ease": "out"},
-      {"t": 0.5, "state": "idle", "ease": "step"}
-    ]}
+    {
+      "name": "wave",
+      "loop": true,
+      "keys": [
+        {
+          "t": 0,
+          "state": "idle"
+        },
+        {
+          "t": 0.3,
+          "state": "wave",
+          "ease": "in-out"
+        },
+        {
+          "t": 0.6,
+          "state": "idle",
+          "ease": "in-out"
+        }
+      ]
+    },
+    {
+      "name": "nod",
+      "keys": [
+        {
+          "t": 0,
+          "state": "idle"
+        },
+        {
+          "t": 0.2,
+          "parts": [
+            {
+              "part": "torso"
+            },
+            {
+              "part": "head",
+              "rotate": 0.4
+            },
+            {
+              "part": "upper_l"
+            },
+            {
+              "part": "fore_l"
+            }
+          ],
+          "ease": "out"
+        },
+        {
+          "t": 0.5,
+          "state": "idle",
+          "ease": "step"
+        }
+      ]
+    }
   ],
   "constraints": [
-    {"name": "arm_l", "chain": ["upper_l", "fore_l"], "end": "fore_l/hand", "bend": 1}
+    {
+      "name": "arm_l",
+      "chain": [
+        "upper_l",
+        "fore_l"
+      ],
+      "end": "fore_l/hand",
+      "bend": 1
+    }
   ]
 }

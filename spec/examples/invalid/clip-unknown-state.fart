@@ -1,1 +1,19 @@
-{"version": 1, "parts": [{"name": "body"}], "clips": [{"name": "c", "keys": [{"t": 0, "state": "gone"}]}]}
+{
+  "version": 1,
+  "parts": [
+    {
+      "name": "body"
+    }
+  ],
+  "clips": [
+    {
+      "name": "c",
+      "keys": [
+        {
+          "t": 0,
+          "state": "gone"
+        }
+      ]
+    }
+  ]
+}

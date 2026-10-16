@@ -20,6 +20,7 @@ Case :: struct {
 	code:  string,
 	space: string, // "3d" for the 1.3 3D cases
 	shart: bool, // a scene (.shart)
+	gas:   bool, // a general art style (.gas): not a loader's business
 }
 Manifest :: struct {
 	cases: []Case,
@@ -43,6 +44,7 @@ corpus :: proc(t: ^testing.T) {
 	for c in m.cases {
 		data, err := os.read_entire_file(fmt.tprintf("%s%s", EXAMPLES, c.file), context.temp_allocator)
 		if !testing.expectf(t, err == nil, "%s should be readable", c.file) do continue
+		if c.gas do continue // styles are for the validator and the studio; a game never loads one
 		if c.shart {
 			context.allocator = context.temp_allocator
 			_, sok := fart.load_scene(data)

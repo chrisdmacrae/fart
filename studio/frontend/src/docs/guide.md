@@ -50,6 +50,25 @@ tabs: what is selected (else the asset, else the project; a click on
 empty canvas lets go of everything), the **view** (camera, overlays,
 zoom), **history** (the checkpoint, undo, the log) and **Ask**.
 
+## The project's direction
+
+A `style.gas` file at the project's root is the art direction
+every asset follows: a statement, the shared palettes and the roles
+their colours play, scale, line, shape budgets, light, motion, naming,
+the assets to copy from, rules the tools can check, and a list to
+avoid. With nothing open the inspector shows it; a new asset starts
+with its palette refs; an asset that breaks a rule shows a **direction**
+line in its inspector; `fart lint` reports the whole project. Ask
+Claude reads it before designing. The format is `spec/DIRECTION.md`.
+
+## Generated assets
+
+An asset written by a generator (`meta.gen` names the script, the way
+`@fastart/make`'s `write` records it) shows **from gen/…** in its
+inspector with **regenerate**, which runs the script with node and
+reloads what it writes. Keep generators in `assets/gen/`; change a
+line, regenerate, and the set follows.
+
 ## The editor
 
 The **pen** (P) draws paths: click for a corner, drag to pull a pair of

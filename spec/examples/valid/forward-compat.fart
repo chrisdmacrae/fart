@@ -1,17 +1,37 @@
 {
   "version": 1,
   "name": "from the future",
-  "x-studio": {"zoom": 12, "tool": "select"},
-  "palette": [{"name": "ink", "rgb": [30, 30, 30, 255], "roughness": 0.4}],
+  "x-studio": {
+    "zoom": 12,
+    "tool": "select"
+  },
+  "palette": [
+    {
+      "name": "ink",
+      "rgb": [30, 30, 30, 255],
+      "roughness": 0.4
+    }
+  ],
   "parts": [
     {
       "name": "body",
       "children": [],
       "shapes": [
-        {"kind": "circle", "color": "ink", "at": [0, 0], "r": 3, "softness": 1}
+        {
+          "kind": "circle",
+          "color": "ink",
+          "at": [0, 0],
+          "r": 3,
+          "softness": 1
+        }
       ]
     }
   ],
   "clips": [],
-  "meta": {"anything": ["goes", "here"]}
+  "meta": {
+    "anything": [
+      "goes",
+      "here"
+    ]
+  }
 }

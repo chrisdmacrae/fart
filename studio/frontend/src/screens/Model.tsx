@@ -10,6 +10,7 @@ import { InlineName } from "../ui/Rename.tsx";
 import { ColorPicker } from "../ui/ColorPicker.tsx";
 import { ModelCanvas } from "../canvas/ModelCanvas.tsx";
 import { TexturesPanel } from "../ui/Textures.tsx";
+import { GenLine } from "../ui/Inspector.tsx";
 import { project } from "../state/project.ts";
 import { gizmoStatus } from "../canvas/gizmo3.ts";
 import { meshStatus } from "../canvas/meshtool3.ts";
@@ -1457,6 +1458,7 @@ export function Inspector3() {
 						<Property label="Name">
 							<TextField value={md.doc.value.name ?? ""} onChange={setDocName} onBlur={() => endGesture()} />
 						</Property>
+						<GenLine rel={md.path.value ?? ""} gen={typeof md.doc.value.meta?.gen === "string" ? md.doc.value.meta.gen : undefined} doc={md.doc.value as never} />
 					</InspectorSection>
 					<TexturesPanel
 						api={{

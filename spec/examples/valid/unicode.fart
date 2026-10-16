@@ -1,9 +1,33 @@
 {
   "version": 1,
   "name": "ñandú 🐦",
-  "palette": [{"name": "plumaje", "rgb": [120, 100, 80, 255]}],
-  "parts": [
-    {"name": "cuerpo", "shapes": [{"kind": "circle", "color": "plumaje", "at": [0, 0], "r": 4}]}
+  "palette": [
+    {
+      "name": "plumaje",
+      "rgb": [120, 100, 80, 255]
+    }
   ],
-  "states": [{"name": "quieto", "parts": [{"part": "cuerpo"}]}]
+  "parts": [
+    {
+      "name": "cuerpo",
+      "shapes": [
+        {
+          "kind": "circle",
+          "color": "plumaje",
+          "at": [0, 0],
+          "r": 4
+        }
+      ]
+    }
+  ],
+  "states": [
+    {
+      "name": "quieto",
+      "parts": [
+        {
+          "part": "cuerpo"
+        }
+      ]
+    }
+  ]
 }

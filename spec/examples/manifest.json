@@ -633,6 +633,36 @@
       "code": "schema"
     },
     {
+      "file": "valid/direction.gas",
+      "valid": true,
+      "note": "a full direction: statement, roles, scale, budgets, motion, names, references, rules with checks, a class override",
+      "gas": true
+    },
+    {
+      "file": "valid/house.gas",
+      "valid": true,
+      "note": "a base direction another extends",
+      "gas": true
+    },
+    {
+      "file": "valid/town.gas",
+      "valid": true,
+      "note": "a style that extends house.gas and adds a rule",
+      "gas": true
+    },
+    {
+      "file": "invalid/direction-bad-check.gas",
+      "valid": false,
+      "code": "gas",
+      "gas": true
+    },
+    {
+      "file": "invalid/direction-no-version.gas",
+      "valid": false,
+      "code": "gas",
+      "gas": true
+    },
+    {
       "file": "valid/paint.fart",
       "valid": true,
       "space": "3d",
@@ -836,5 +866,8 @@
     "ref.clip": "the referenced file lacks the clip",
     "ref.anchor": "the referenced file lacks the anchor",
     "cycle": "a scene that reaches itself"
+  },
+  "gas_codes": {
+    "gas": "a direction file (.gas) that is not a JSON object with version 1, or whose rule names a check the format does not have, or whose extends loop"
   }
 }

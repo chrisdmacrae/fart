@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "town",
+  "extends": [
+    "house.gas"
+  ],
+  "about": "A harbour town at dusk.",
+  "palette_refs": [
+    "palettes/town.fart"
+  ],
+  "rules": [
+    {
+      "say": "outlines are the line width",
+      "check": "line.width",
+      "args": {
+        "w": 0.6
+      }
+    }
+  ]
+}

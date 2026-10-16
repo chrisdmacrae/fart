@@ -137,6 +137,8 @@ export interface Shell {
 	branch(dir: string): Promise<string>;
 	branches(dir: string): Promise<string[]>;
 	switchBranch(dir: string, name: string): Promise<void>;
+	/** run a project generator (.mjs, project-relative) with node; resolves with its output */
+	runGenerator(root: string, rel: string): Promise<string>;
 	newBranch(dir: string, name: string): Promise<void>;
 	/** make the folder a repository, if it is not one */
 	gitInit(dir: string): Promise<void>;
@@ -229,6 +231,9 @@ class HttpShell implements Shell {
 		return [];
 	}
 	async switchBranch() {}
+	async runGenerator(): Promise<string> {
+		throw new Error("a served studio cannot run generators");
+	}
 	async newBranch() {}
 	async gitInit() {}
 	async gitStatus(): Promise<GitChange[]> {

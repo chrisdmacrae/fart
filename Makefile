@@ -114,8 +114,9 @@ validate: node_modules
 
 # the skill names this checkout, so agents in other projects find the tools
 skill:
-	mkdir -p $(HOME)/.claude/skills/fastart
+	mkdir -p $(HOME)/.claude/skills/fastart/references
 	sed 's#{{FASTART}}#$(CURDIR)#g' skills/fastart/SKILL.md > $(HOME)/.claude/skills/fastart/SKILL.md
+	for f in skills/fastart/references/*.md; do sed 's#{{FASTART}}#$(CURDIR)#g' $$f > $(HOME)/.claude/skills/fastart/references/$$(basename $$f); done
 	@echo "installed ~/.claude/skills/fastart (run again after pulling)"
 
 clean:

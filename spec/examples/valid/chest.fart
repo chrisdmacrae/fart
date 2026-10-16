@@ -1,28 +1,57 @@
 {
   "version": 1,
   "name": "chest",
-  "palette_refs": ["palette.fart"],
+  "palette_refs": [
+    "palette.fart"
+  ],
   "palette": [
-    {"name": "clasp", "rgb": [220, 190, 90, 255]}
+    {
+      "name": "clasp",
+      "rgb": [220, 190, 90, 255]
+    }
   ],
   "parts": [
     {
       "name": "box",
       "pivot": [0, 0],
       "shapes": [
-        {"kind": "poly", "color": "wood", "points": [[-8, -5], [8, -5], [8, 5], [-8, 5]], "tris": [0, 1, 2, 0, 2, 3]},
-        {"kind": "line", "color": "steel", "a": [-8, 0], "b": [8, 0], "w": 1.2}
+        {
+          "kind": "poly",
+          "color": "wood",
+          "points": [[-8, -5], [8, -5], [8, 5], [-8, 5]],
+          "tris": [0, 1, 2, 0, 2, 3]
+        },
+        {
+          "kind": "line",
+          "color": "steel",
+          "a": [-8, 0],
+          "b": [8, 0],
+          "w": 1.2
+        }
       ]
     },
     {
       "name": "lid",
       "pivot": [-8, -5],
       "shapes": [
-        {"kind": "poly", "color": "wood", "points": [[-8, -9], [8, -9], [8, -5], [-8, -5]], "tris": [0, 1, 2, 0, 2, 3]},
-        {"kind": "circle", "color": "clasp", "at": [0, -5], "r": 1.6}
+        {
+          "kind": "poly",
+          "color": "wood",
+          "points": [[-8, -9], [8, -9], [8, -5], [-8, -5]],
+          "tris": [0, 1, 2, 0, 2, 3]
+        },
+        {
+          "kind": "circle",
+          "color": "clasp",
+          "at": [0, -5],
+          "r": 1.6
+        }
       ],
       "anchors": [
-        {"name": "hinge", "at": [-8, -5]}
+        {
+          "name": "hinge",
+          "at": [-8, -5]
+        }
       ]
     }
   ],
@@ -30,20 +59,35 @@
     {
       "name": "closed",
       "parts": [
-        {"part": "box"},
-        {"part": "lid"}
+        {
+          "part": "box"
+        },
+        {
+          "part": "lid"
+        }
       ]
     },
     {
       "name": "open",
       "parts": [
-        {"part": "lid", "offset": [-8, -5], "rotate": -2.4},
-        {"part": "box"}
+        {
+          "part": "lid",
+          "offset": [-8, -5],
+          "rotate": -2.4
+        },
+        {
+          "part": "box"
+        }
       ]
     }
   ],
   "collision": [
-    {"kind": "line", "a": [-6, 0], "b": [6, 0], "w": 10}
+    {
+      "kind": "line",
+      "a": [-6, 0],
+      "b": [6, 0],
+      "w": 10
+    }
   ],
   "meta": {
     "loot": "gold",

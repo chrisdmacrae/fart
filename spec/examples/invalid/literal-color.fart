@@ -1,4 +1,16 @@
 {
   "version": 1,
-  "parts": [{"name": "body", "shapes": [{"kind": "circle", "color": "#ff00ff", "at": [0, 0], "r": 2}]}]
+  "parts": [
+    {
+      "name": "body",
+      "shapes": [
+        {
+          "kind": "circle",
+          "color": "#ff00ff",
+          "at": [0, 0],
+          "r": 2
+        }
+      ]
+    }
+  ]
 }

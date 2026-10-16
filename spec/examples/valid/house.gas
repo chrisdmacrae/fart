@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "house",
+  "about": "The studio's house style: flat colour, no gradients.",
+  "avoid": [
+    "gradients"
+  ],
+  "light": {
+    "light": [
+      -1,
+      -2,
+      -3
+    ],
+    "ambient": 0.4
+  }
+}
