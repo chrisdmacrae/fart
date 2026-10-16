@@ -436,6 +436,7 @@ let flushTimer: number | undefined;
 let mergeKey: string | null = null;
 const FLUSH_MS = 350;
 const UNDO_MAX = 200;
+const UNDO_CHARS = 128e6;
 
 function docText(): string {
 	return JSON.stringify(md.doc.value);
@@ -449,7 +450,9 @@ function root(): string {
 function touch() {
 	batch(() => {
 		md.rev.value++;
-		md.dirty.value = docText() !== checkpoint;
+		// edited: the exact answer (back at the checkpoint after an undo?) waits for the flush, which has
+		// the text in hand anyway; working it out here is the whole document as text on every pointer move
+		md.dirty.value = true;
 		md.tokens.value = [...md.shared.value, ...palette()];
 		md.canUndo.value = undoStack.length > 0;
 		md.canRedo.value = redoStack.length > 0;
@@ -459,18 +462,34 @@ function touch() {
 export function pushUndo() {
 	undoStack.push(snapshot());
 	if (undoStack.length > UNDO_MAX) undoStack.shift();
+	// a step is the whole document as text: a big file keeps fewer of them, not hundreds of megabytes
+	let size = 0;
+	for (const u of undoStack) size += u.doc.length;
+	while (size > UNDO_CHARS && undoStack.length > 1) size -= undoStack.shift()!.doc.length;
 	redoStack = [];
 }
 /** Apply a change; `merge` names a gesture so a drag is one undo step. */
-export function mutate(fn: (d: Doc3) => void, merge?: string) {
+/**
+ * Apply a change. `merge` names a gesture: its first change snapshots for
+ * undo, the rest ride along. `posesOnly` says the change touches poses
+ * and nothing else (a drag on the rig), so the textures need no look.
+ */
+export function mutate(fn: (d: Doc3) => void, merge?: string, posesOnly = false) {
 	if (!merge || mergeKey !== merge) {
 		pushUndo();
 		mergeKey = merge ?? null;
 	}
-	const texBefore = JSON.stringify(md.doc.value.textures ?? []);
 	fn(md.doc.value);
 	touch();
-	if (JSON.stringify(md.doc.value.textures ?? []) !== texBefore) void reloadPatterns();
+	if (!posesOnly) syncTextures();
+}
+/** the textures as text as of the last look */
+let texText = "[]";
+/** Textures changed since the last look (an edit, an undo, a document from elsewhere): render them again. One look per change. */
+function syncTextures() {
+	const tex = JSON.stringify(md.doc.value.textures ?? []);
+	if (tex !== texText) void reloadPatterns();
+	texText = tex;
 }
 export function endGesture() {
 	mergeKey = null;
@@ -502,6 +521,7 @@ function restore(snap: Snap) {
 	});
 	clampCursors();
 	touch();
+	syncTextures();
 }
 export function undo() {
 	const s = undoStack.pop();
@@ -546,6 +566,7 @@ export async function flushNow() {
 	const rel = md.path.value;
 	if (!rel) return;
 	const snap = docText();
+	md.dirty.value = snap !== checkpoint;
 	if (snap === lastFlush) return;
 	lastFlush = snap;
 	try {
@@ -662,6 +683,7 @@ export async function openModel(rel: string, text: string): Promise<boolean> {
 		md.rev.value++;
 	});
 	check(d);
+	texText = JSON.stringify(d.textures ?? []);
 	void reloadPatterns();
 	loadWork(root(), rel);
 	void loadMannequin();
@@ -718,6 +740,7 @@ export function applyExternalDoc(next: Doc3): string {
 		md.polyPts.value = [];
 	});
 	touch();
+	syncTextures();
 	check(d);
 	const a = new Set((before.parts ?? []).map((p) => p.name));
 	const b = (d.parts ?? []).map((p) => p.name);
@@ -928,7 +951,7 @@ export function setPose(sp: StatePart3, patch: Partial<StatePart3>, merge?: stri
 		if (!e) return;
 		Object.assign(e, patch);
 		if (patch.mirror === false) delete e.mirror;
-	}, merge);
+	}, merge, true);
 }
 export function resetPose(sp: StatePart3) {
 	const p = parts().find((q) => q.name === sp.part);

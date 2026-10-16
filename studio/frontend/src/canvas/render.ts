@@ -16,7 +16,8 @@ import type { PatternSource } from "./draw.ts";
 /** The store's rendered maps as the painter wants them. */
 export function patternsOf(ps: Map<string, TexturePattern>): Map<string, PatternSource> {
 	const out = new Map<string, PatternSource>();
-	for (const [name, p] of ps) out.set(name, { canvas: p.canvas, mode: p.mode, sx: p.sx, sy: p.sy });
+	// the pattern itself, not a copy of its fields: reading `canvas` renders it, and only a shape that wears it should
+	for (const [name, p] of ps) out.set(name, p);
 	return out;
 }
 

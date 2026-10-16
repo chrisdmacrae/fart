@@ -132,6 +132,7 @@ let mergeKey: string | null = null;
 
 const FLUSH_MS = 350;
 const UNDO_MAX = 200;
+const UNDO_CHARS = 128e6;
 
 // ------------------------------------------------------------- access
 
@@ -353,7 +354,9 @@ function snapshot(): Snap {
 function touch() {
 	batch(() => {
 		ed.rev.value++;
-		markDirty();
+		// edited: the exact answer (back at the checkpoint after an undo?) waits for the flush, which has
+		// the text in hand anyway; working it out here is the whole document as text on every pointer move
+		ed.dirty.value = true;
 		ed.tokens.value = [...ed.shared.value, ...palette()];
 		ed.canUndo.value = undoStack.length > 0;
 		ed.canRedo.value = redoStack.length > 0;
@@ -364,6 +367,10 @@ function touch() {
 export function pushUndo() {
 	undoStack.push(snapshot());
 	if (undoStack.length > UNDO_MAX) undoStack.shift();
+	// a step is the whole document as text: a big file keeps fewer of them, not hundreds of megabytes
+	let size = 0;
+	for (const u of undoStack) size += u.doc.length;
+	while (size > UNDO_CHARS && undoStack.length > 1) size -= undoStack.shift()!.doc.length;
 	redoStack = [];
 }
 
@@ -372,15 +379,16 @@ export function pushUndo() {
  * the first change in a gesture snapshots for undo, the rest ride along,
  * so one drag is one undo step. endGesture() closes it.
  */
-export function mutate(fn: (d: Doc) => void, merge?: string) {
+export function mutate(fn: (d: Doc) => void, merge?: string, posesOnly = false) {
 	if (!merge || mergeKey !== merge) {
 		pushUndo();
 		mergeKey = merge ?? null;
 	}
-	const texBefore = JSON.stringify(ed.doc.value.textures ?? []);
+	// `posesOnly`: the change touches poses and nothing else (a drag on the rig), so the textures need no look
+	const texBefore = posesOnly ? "" : JSON.stringify(ed.doc.value.textures ?? []);
 	fn(doc());
 	touch();
-	if (JSON.stringify(ed.doc.value.textures ?? []) !== texBefore) void reloadPatterns();
+	if (!posesOnly && JSON.stringify(ed.doc.value.textures ?? []) !== texBefore) void reloadPatterns();
 }
 
 export function endGesture() {
@@ -470,6 +478,7 @@ export async function flushNow() {
 	const rel = ed.path.value;
 	if (!rel) return;
 	const snap = docText();
+	ed.dirty.value = snap !== checkpoint;
 	if (snap === lastFlush) return;
 	if (asking) return; // the conflict dialog decides
 	// another tool may have written the file since we last synced: never write over that unseen
@@ -1698,7 +1707,7 @@ export function ikTo(c: Constraint, target: Vec2) {
 		const tg = (pz.targets ??= []).find((t) => t.chain === c.name);
 		if (tg) tg.at = at;
 		else pz.targets.push({ chain: c.name, at });
-	}, "ik");
+	}, "ik", true);
 }
 
 /**
@@ -1714,7 +1723,7 @@ export function setPose(sp: StatePart, patch: Partial<StatePart>, merge?: string
 		Object.assign(e, patch);
 		if (e.mirror === false) delete e.mirror;
 		settleTargets(d, pz);
-	}, merge);
+	}, merge, true);
 }
 
 export function resetPose(sp: StatePart) {
