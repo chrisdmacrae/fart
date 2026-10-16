@@ -8,7 +8,7 @@ package fastart
 //                   the cage with its mods applied and subdivided
 //   built_mesh(sh)  the cage with its mods applied, before smoothing: what
 //                   collision and a hull read
-//   sweep_mesh(sh)  a sweep's cage: lathe, extrude, pipe (curves.odin)
+//   sweep_mesh(sh)  a sweep's cage: lathe, extrude, pipe, rail (curves.odin)
 //
 // Paint (a palette token per face), shades (a factor per point), creases
 // and explicit pattern coordinates ride through every step as the spec
@@ -421,6 +421,8 @@ sweep64 :: proc(sh: ^Shape3) -> Mesh64 {
 	switch sh.op {
 	case "pipe":
 		if len(sh.path.points) > 0 do pipe64(sh, &m)
+	case "rail":
+		if len(sh.path.points) > 0 && len(sh.profile.points) > 0 do rail64(sh, &m)
 	case "lathe":
 		if len(sh.profile.points) == 0 do break
 		profile := profile64(&sh.profile, sh.profile.closed)
@@ -622,6 +624,199 @@ pipe64 :: proc(sh: ^Shape3, m: ^Mesh64) {
 			slice_reverse(m.faces[len(m.faces) - 1][:])
 		}
 		if len(rings[count - 1]) > 1 do face(m, ..rings[count - 1][:])
+	}
+}
+
+// 1.11: the path a rail runs along, its corners rounded: each cut back
+// by `radius` (or by half the shorter of its two segments, where that
+// is less) and joined by an arc in the plane of the two, `steps` to a
+// quarter turn. A straight run and a path that doubles back keep their
+// point. On the temp allocator.
+@(private)
+round_corners64 :: proc(points: []D3, radius: f64, steps: int, closed: bool) -> [dynamic]D3 {
+	n := len(points)
+	out := make([dynamic]D3, 0, n * 4, context.temp_allocator)
+	if !(radius > 0) || n < 3 {
+		append(&out, ..points)
+		return out
+	}
+	for P, i in points {
+		if !closed && (i == 0 || i == n - 1) {
+			append(&out, P)
+			continue
+		}
+		A, B := points[(i + n - 1) % n] - P, points[(i + 1) % n] - P
+		la, lb := len64(A), len64(B)
+		if la < 1e-9 || lb < 1e-9 {
+			append(&out, P)
+			continue
+		}
+		a, b := A / la, B / lb
+		// the angle between the two segments at the corner, and how far the path turns there
+		inside := math.acos(clamp(dot64(a, b), -1, 1))
+		turn := math.PI - inside
+		if turn < 1e-6 || inside < 1e-6 {
+			append(&out, P)
+			continue
+		}
+		d := min(radius / math.tan(inside / 2), la / 2, lb / 2)
+		r := d * math.tan(inside / 2)
+		C := P + norm64(a + b) * (r / math.sin(inside / 2))
+		v0, v1 := (P + a * d - C) / r, (P + b * d - C) / r
+		count := max(1, int(math.ceil(turn / (math.PI / 2) * f64(steps) - 1e-9)))
+		sn := math.sin(turn)
+		for j in 0 ..= count {
+			t := f64(j) / f64(count)
+			w0, w1 := math.sin((1 - t) * turn) / sn, math.sin(t * turn) / sn
+			append(&out, C + (v0 * w0 + v1 * w1) * r)
+		}
+	}
+	return out
+}
+
+// 1.11: a profile carried upright along a path. The rings of points a
+// rail is made of, one per point of `spine` in its order, each in the
+// section's order: a section point (x, y) stands y along `axis` from
+// the path and x out to its side, level, square to the way the path is
+// going (the axis crossed with it); at a corner on the mitre, so a face
+// keeps its distance from the path on both sides of it. A point of the
+// spine that sits on the one before it is dropped first, so `count`
+// says how many rings came of it: none for a path with no way to go.
+// On the temp allocator; nothing is rounded.
+@(private)
+rail_rings64 :: proc(spine: []D3, section: []D2, axis: D3, closed: bool) -> (points: [dynamic]D3, count: int) {
+	context.allocator = context.temp_allocator
+	P := make([dynamic]D3, 0, len(spine))
+	for p in spine {
+		if len(P) > 0 && len64(p - P[len(P) - 1]) <= 1e-9 do continue
+		append(&P, p)
+	}
+	if closed && len(P) > 1 && len64(P[0] - P[len(P) - 1]) <= 1e-9 do pop(&P)
+	m := len(P)
+	if m < (closed ? 3 : 2) do return
+	// each segment's way, level: what is left of its direction with the axis taken out. A segment that runs straight
+	// along the axis has none, and takes its neighbour's
+	segs := closed ? m : m - 1
+	H := make([]D3, segs)
+	has := make([]bool, segs)
+	for i in 0 ..< segs {
+		d := P[(i + 1) % m] - P[i]
+		h := d - axis * dot64(d, axis)
+		if len64(h) >= 1e-9 do H[i], has[i] = norm64(h), true
+	}
+	for i in 1 ..< segs do if !has[i] && has[i - 1] do H[i], has[i] = H[i - 1], true
+	for i := segs - 2; i >= 0; i -= 1 do if !has[i] && has[i + 1] do H[i], has[i] = H[i + 1], true
+	for h in has do if !h do return
+	// out to the side of each segment: the axis crossed with its way
+	O := make([]D3, segs)
+	for i in 0 ..< segs do O[i] = cross64(axis, H[i])
+	points = make([dynamic]D3, 0, m * len(section))
+	for i in 0 ..< m {
+		side: D3
+		reach := f64(1)
+		before, after := -1, -1
+		if closed do before, after = (i + segs - 1) % segs, i % segs
+		else {
+			if i > 0 do before = i - 1
+			if i < segs do after = i
+		}
+		if before >= 0 && after >= 0 {
+			sum := O[before] + O[after]
+			if len64(sum) < 1e-9 do side = O[after]
+			else {
+				side = norm64(sum)
+				reach = 1 / max(dot64(side, O[after]), 0.25)
+			}
+		} else do side = O[before >= 0 ? before : after]
+		for c in section do append(&points, P[i] + side * (reach * c.x) + axis * c.y)
+	}
+	return points, m
+}
+
+// 1.11: where a rail's profile stands along a path a game has made for
+// itself (an outline it traced, not a shape of a file): for each point
+// of `spine` that is kept (one that sits on the one before it is
+// dropped), the point, and the way a profile point one unit out stands
+// from it: its side on the mitre, as long as the mitre makes it. A
+// profile point (x, y) is then `at + x side + y axis`, as a rail's is.
+// Nothing for a path with no way to go.
+rail_frames :: proc(spine: []V3, axis: V3, closed := false, allocator := context.allocator) -> (at: []V3, side: []V3) {
+	wide := make([]D3, len(spine), context.temp_allocator)
+	for p, i in spine do wide[i] = {f64(p.x), f64(p.y), f64(p.z)}
+	points, count := rail_rings64(wide, {{0, 0}, {1, 0}}, {f64(axis.x), f64(axis.y), f64(axis.z)}, closed)
+	if count == 0 do return
+	at = make([]V3, count, allocator)
+	side = make([]V3, count, allocator)
+	for i in 0 ..< count {
+		p, q := points[i * 2], points[i * 2 + 1]
+		at[i] = {f32(p.x), f32(p.y), f32(p.z)}
+		side[i] = {f32(q.x - p.x), f32(q.y - p.y), f32(q.z - p.z)}
+	}
+	return
+}
+
+// 1.11: a rail's cage. One ring of points per point of the path (its
+// corners rounded, if it has no handles), in profile order; a quad
+// `[a k, a k+1, b k+1, b k]` for each edge of the profile between each
+// ring and the next. An open profile is a sheet facing the profile's
+// left as it is drawn; a closed one a moulding wound outward (taken in
+// reverse when its signed area is negative), capped at an open path's
+// ends: the first ring reversed, the last as it is.
+@(private)
+rail64 :: proc(sh: ^Shape3, m: ^Mesh64) {
+	closed := sh.closed
+	solid := sh.profile.closed
+	flat := make([dynamic]D3)
+	flat_at := make([dynamic]f64)
+	spine64(&sh.path, closed, &flat, &flat_at)
+	curved := false
+	for v in sh.path.in_ do if abs(v.x) > 1e-9 || abs(v.y) > 1e-9 || abs(v.z) > 1e-9 do curved = true
+	for v in sh.path.out do if abs(v.x) > 1e-9 || abs(v.y) > 1e-9 || abs(v.z) > 1e-9 do curved = true
+	steps := sh.segments == 0 ? 4 : max(1, sh.segments)
+	spine := curved ? flat : round_corners64(flat[:], to_f64(sh.round), steps, closed)
+	section := profile64(&sh.profile, solid)
+	if len(section) < (solid ? 3 : 2) do return
+	if solid {
+		area: f64
+		for p, i in section {
+			q := section[(i + 1) % len(section)]
+			area += p.x * q.y - q.x * p.y
+		}
+		if area < 0 do for i, j := 0, len(section) - 1; i < j; i, j = i + 1, j - 1 do section[i], section[j] = section[j], section[i]
+	}
+	axis := D3{0, 1, 0}
+	switch sh.axis {
+	case "x":
+		axis = {1, 0, 0}
+	case "z":
+		axis = {0, 0, 1}
+	}
+	points, count := rail_rings64(spine[:], section[:], axis, closed)
+	if count == 0 do return
+	for p in points do append(&m.points, round3(p))
+	face :: proc(m: ^Mesh64, idx: ..u16) {
+		f := make([dynamic]u16, len(idx))
+		copy(f[:], idx)
+		append(&m.faces, f)
+	}
+	K := len(section)
+	edges := solid ? K : K - 1
+	at :: proc(ring, k, K: int) -> u16 {
+		return u16(ring * K + k)
+	}
+	for i in 0 ..< (closed ? count : count - 1) {
+		j := (i + 1) % count
+		for k in 0 ..< edges {
+			k2 := (k + 1) % K
+			face(m, at(i, k, K), at(i, k2, K), at(j, k2, K), at(j, k, K))
+		}
+	}
+	caps := sh.caps.? or_else true
+	if solid && !closed && caps {
+		first := make([dynamic]u16, K)
+		last := make([dynamic]u16, K)
+		for k in 0 ..< K do first[k], last[k] = at(0, K - 1 - k, K), at(count - 1, k, K)
+		append(&m.faces, first, last)
 	}
 }
 

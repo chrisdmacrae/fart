@@ -17,6 +17,7 @@ import {
 	pivotOf3,
 	shapesOf3Posed,
 	setHull,
+	unwrapDoc,
 	quatAxis,
 	quatFromEuler,
 	quatMul,
@@ -1295,12 +1296,19 @@ export function setTextureCell(i: number, axis: 0 | 1, v: number) {
 		d.textures![i].cell = c;
 	}, `tex-cell-${i}-${axis}`);
 }
+/** 1.8: how far the height map stands proud, in pattern units; 0 for none. */
+export function setTextureRelief(i: number, v: number) {
+	mutate((d) => {
+		if (v) d.textures![i].relief = v;
+		else delete d.textures![i].relief;
+	}, `tex-relief-${i}`);
+}
 export function setMap(i: number, map: string, patch: Partial<TextureMap>) {
 	mutate((d) => {
 		const m = d.textures![i].maps[map];
 		if (!m) return;
 		for (const [k, v] of Object.entries(patch)) {
-			if (v === undefined || v === "" || (k === "mode" && v === "paint")) delete (m as Record<string, unknown>)[k];
+			if (v === undefined || v === "" || (k === "mode" && v === "paint") || (k === "soften" && !((v as number) > 0))) delete (m as Record<string, unknown>)[k];
 			else (m as Record<string, unknown>)[k] = v;
 		}
 	});
@@ -1327,6 +1335,30 @@ export function setSelTexture(name: string) {
 			delete sh.texture;
 			delete sh.mapping;
 		}
+	});
+}
+/**
+ * Unwrap (1.10): the selected mesh's texture becomes a sheet. Every mesh that wears it gets explicit uvs,
+ * its faces box-projected into islands and packed into the cell together.
+ */
+export function unwrapSel() {
+	const s = md.sel.value;
+	if (!s) return;
+	const name = doc().parts?.[s.part]?.shapes?.[s.shape]?.texture;
+	if (!name) return;
+	mutate((d) => void unwrapDoc(d, { texture: name }));
+}
+/** Back to box mapping: the selected shape drops its explicit uvs. */
+export function boxMapSel() {
+	const s = md.sel.value;
+	if (!s) return;
+	mutate((d) => {
+		const sh = d.parts![s.part].shapes![s.shape];
+		if (!sh.mapping?.uvs) return;
+		const { uvs: _uvs, ...rest } = sh.mapping;
+		void _uvs;
+		if (Object.keys(rest).length) sh.mapping = rest;
+		else delete sh.mapping;
 	});
 }
 export function setSelMappingScale(v: number) {

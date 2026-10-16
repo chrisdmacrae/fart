@@ -356,16 +356,182 @@ export function pipe(color: string, path: { points: Vec3[]; in?: Vec3[]; out?: V
 	return { kind: "mesh", color, points, faces };
 }
 
+/** What shapes a rail (1.11) besides its path and its profile. */
+export interface RailOptions {
+	/** the axis the profile stands along: its second coordinate runs that way. y when absent */
+	axis?: Axis;
+	/** the radius the path's corners are rounded to; 0 or absent leaves them sharp */
+	round?: number;
+	/** steps in a quarter turn of a rounded corner, 4 by default */
+	segments?: number;
+	/** join the path's last point to its first */
+	closed?: boolean;
+	/** the profile is a closed outline (a moulding, a kerb); open when absent (a face, a skirt) */
+	solid?: boolean;
+	/** close the ends of a solid profile on an open path (the default) */
+	caps?: boolean;
+}
+
+/**
+ * The path a rail runs along, its corners rounded: each corner cut back
+ * by `radius` (or by half the shorter of its two segments, where that
+ * is less) and joined by an arc in the plane of the two, `steps` to a
+ * quarter turn. A straight run and a path that doubles back keep their
+ * point.
+ */
+export function roundCorners(points: Vec3[], radius: number, steps: number, closed: boolean): Vec3[] {
+	const n = points.length;
+	if (!(radius > 0) || n < 3) return points.map((p) => [...p] as Vec3);
+	const out: Vec3[] = [];
+	for (let i = 0; i < n; i++) {
+		const P = points[i];
+		if (!closed && (i === 0 || i === n - 1)) {
+			out.push([...P] as Vec3);
+			continue;
+		}
+		const A = v3sub(points[(i + n - 1) % n], P);
+		const B = v3sub(points[(i + 1) % n], P);
+		const la = Math.hypot(A[0], A[1], A[2]);
+		const lb = Math.hypot(B[0], B[1], B[2]);
+		if (la < 1e-9 || lb < 1e-9) {
+			out.push([...P] as Vec3);
+			continue;
+		}
+		const a: Vec3 = [A[0] / la, A[1] / la, A[2] / la];
+		const b: Vec3 = [B[0] / lb, B[1] / lb, B[2] / lb];
+		// the angle between the two segments at the corner, and how far the path turns there
+		const inside = Math.acos(Math.max(-1, Math.min(1, v3dot(a, b))));
+		const turn = Math.PI - inside;
+		if (turn < 1e-6 || inside < 1e-6) {
+			out.push([...P] as Vec3);
+			continue;
+		}
+		const d = Math.min(radius / Math.tan(inside / 2), la / 2, lb / 2);
+		const r = d * Math.tan(inside / 2);
+		const mid = v3norm([a[0] + b[0], a[1] + b[1], a[2] + b[2]]);
+		const h = r / Math.sin(inside / 2);
+		const C: Vec3 = [P[0] + mid[0] * h, P[1] + mid[1] * h, P[2] + mid[2] * h];
+		const v0: Vec3 = [(P[0] + a[0] * d - C[0]) / r, (P[1] + a[1] * d - C[1]) / r, (P[2] + a[2] * d - C[2]) / r];
+		const v1: Vec3 = [(P[0] + b[0] * d - C[0]) / r, (P[1] + b[1] * d - C[1]) / r, (P[2] + b[2] * d - C[2]) / r];
+		const count = Math.max(1, Math.ceil((turn / (Math.PI / 2)) * steps - 1e-9));
+		const sn = Math.sin(turn);
+		for (let j = 0; j <= count; j++) {
+			const t = j / count;
+			const w0 = Math.sin((1 - t) * turn) / sn;
+			const w1 = Math.sin(t * turn) / sn;
+			out.push([C[0] + r * (w0 * v0[0] + w1 * v1[0]), C[1] + r * (w0 * v0[1] + w1 * v1[1]), C[2] + r * (w0 * v0[2] + w1 * v1[2])]);
+		}
+	}
+	return out;
+}
+
+/**
+ * A profile carried upright along a path (1.11): a cliff's face, a
+ * kerb, a skirting board, a gutter. Where a pipe's section turns with
+ * its path, a rail's stands: its second coordinate runs along `axis`
+ * wherever the path goes, and its first runs out to the side, level,
+ * square to the way the path is going. At a corner the profile stands
+ * on the mitre, so a face keeps its distance from the path on both
+ * sides of it. An open profile makes a sheet that faces the profile's
+ * left as it is drawn; a solid one a moulding, wound outward.
+ */
+export function rail(color: string, path: { points: Vec3[]; in?: Vec3[]; out?: Vec3[] }, profile: Vec2[], opts: RailOptions = {}): MeshShape {
+	const empty: MeshShape = { kind: "mesh", color, points: [], faces: [] };
+	const closed = !!opts.closed;
+	const solid = !!opts.solid;
+	const flat = pathPoints3(path, closed).points;
+	const steps = Math.max(1, Math.round(opts.segments ?? 4));
+	const curved = [path.in, path.out].some((hs) => hs && hs.some((v) => Math.abs(v[0]) > 1e-9 || Math.abs(v[1]) > 1e-9 || Math.abs(v[2]) > 1e-9));
+	const spine = curved ? flat : roundCorners(flat, opts.round ?? 0, steps, closed);
+	const apart = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) > 1e-9;
+	const P: Vec3[] = [];
+	for (const p of spine) if (!P.length || apart(p, P[P.length - 1])) P.push(p);
+	if (closed && P.length > 1 && !apart(P[0], P[P.length - 1])) P.pop();
+	const m = P.length;
+	if (m < (closed ? 3 : 2)) return empty;
+	let section = profile.map((p) => [p[0], p[1]] as Vec2);
+	if (section.length < (solid ? 3 : 2)) return empty;
+	if (solid) {
+		let area = 0;
+		section.forEach((p, i) => {
+			const q = section[(i + 1) % section.length];
+			area += p[0] * q[1] - q[0] * p[1];
+		});
+		if (area < 0) section = section.reverse();
+	}
+	const ax = opts.axis ?? "y";
+	const A: Vec3 = ax === "x" ? [1, 0, 0] : ax === "y" ? [0, 1, 0] : [0, 0, 1];
+	// each segment's way, level: what is left of its direction with the axis taken out. A segment that runs straight
+	// along the axis has none, and takes its neighbour's
+	const segs = closed ? m : m - 1;
+	const H: (Vec3 | null)[] = [];
+	for (let i = 0; i < segs; i++) {
+		const d = v3sub(P[(i + 1) % m], P[i]);
+		const k = v3dot(d, A);
+		const h: Vec3 = [d[0] - A[0] * k, d[1] - A[1] * k, d[2] - A[2] * k];
+		H.push(Math.hypot(h[0], h[1], h[2]) < 1e-9 ? null : v3norm(h));
+	}
+	for (let i = 1; i < segs; i++) if (!H[i]) H[i] = H[i - 1];
+	for (let i = segs - 2; i >= 0; i--) if (!H[i]) H[i] = H[i + 1];
+	if (closed && !H[0]) H[0] = H[segs - 1];
+	if (H.some((h) => !h)) return empty;
+	// out to the side of each segment: the axis crossed with its way
+	const O = (H as Vec3[]).map((h) => v3cross(A, h));
+	const points: Vec3[] = [];
+	const rings: number[][] = [];
+	for (let i = 0; i < m; i++) {
+		let side: Vec3;
+		let reach = 1;
+		const before = closed ? O[(i + segs - 1) % segs] : i > 0 ? O[i - 1] : null;
+		const after = closed ? O[i % segs] : i < segs ? O[i] : null;
+		if (before && after) {
+			const sum: Vec3 = [before[0] + after[0], before[1] + after[1], before[2] + after[2]];
+			if (Math.hypot(sum[0], sum[1], sum[2]) < 1e-9) side = after;
+			else {
+				side = v3norm(sum);
+				reach = 1 / Math.max(v3dot(side, after), 0.25);
+			}
+		} else side = (before ?? after)!;
+		const ring: number[] = [];
+		for (const [x, y] of section) {
+			points.push(round([P[i][0] + reach * x * side[0] + y * A[0], P[i][1] + reach * x * side[1] + y * A[1], P[i][2] + reach * x * side[2] + y * A[2]]));
+			ring.push(points.length - 1);
+		}
+		rings.push(ring);
+	}
+	const faces: number[][] = [];
+	const K = section.length;
+	const edges = solid ? K : K - 1;
+	for (let i = 0; i < segs; i++) {
+		const a = rings[i];
+		const b = rings[(i + 1) % m];
+		for (let k = 0; k < edges; k++) {
+			const k2 = (k + 1) % K;
+			faces.push([a[k], a[k2], b[k2], b[k]]);
+		}
+	}
+	if (solid && !closed && opts.caps !== false) {
+		faces.push([...rings[0]].reverse());
+		faces.push([...rings[m - 1]]);
+	}
+	return { kind: "mesh", color, points, faces };
+}
+
 const sweeps = new WeakMap<object, { key: string; mesh: MeshShape }>();
 
 /** The mesh a sweep (1.7) generates: its profile flattened, then lathed or extruded, or (1.8) carried along a path. The cage, before any mods or smoothing. */
 export function sweepMesh(sh: SweepShape): MeshShape {
-	const key = JSON.stringify([sh.op, sh.axis, sh.profile, sh.segments, sh.from, sh.to, sh.path, sh.radius, sh.radii, sh.caps, sh.closed]);
+	const key = JSON.stringify([sh.op, sh.axis, sh.profile, sh.segments, sh.from, sh.to, sh.path, sh.radius, sh.radii, sh.caps, sh.closed, sh.round]);
 	const hit = sweeps.get(sh);
 	if (hit && hit.key === key) return withLook(hit.mesh, sh);
 	const none: MeshShape = { kind: "mesh", color: sh.color, points: [], faces: [] };
 	let mesh: MeshShape = none;
-	if (sh.op === "pipe") {
+	if (sh.op === "rail") {
+		if (sh.path && Array.isArray(sh.path.points) && sh.profile) {
+			const solid = !!sh.profile.closed;
+			mesh = rail(sh.color ?? "", sh.path, pathPoints({ ...sh.profile, closed: solid }), { axis: sh.axis, round: sh.round, segments: sh.segments, closed: sh.closed, solid, caps: sh.caps });
+		}
+	} else if (sh.op === "pipe") {
 		const section = sh.profile ? pathPoints({ ...sh.profile, closed: true }) : undefined;
 		if (sh.path && Array.isArray(sh.path.points)) mesh = pipe(sh.color ?? "", sh.path, { radius: sh.radius, radii: sh.radii, segments: sh.segments, caps: sh.caps, closed: sh.closed, profile: section });
 	} else if (sh.profile) {

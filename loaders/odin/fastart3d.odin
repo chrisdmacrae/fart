@@ -54,7 +54,7 @@ Shape3 :: struct {
 	smooth:   int, // 1.7: Catmull-Clark levels; the cage stays the file
 	creases:  [dynamic][dynamic]f32, // 1.7: [a, b, c] an edge's crease in 0..1, [a, c] a corner
 	bake:     Mesh_Bake, // 1.7: the subdivided or generated surface, when a tool wrote one
-	op:       string, // 1.7, sweep: "lathe" | "extrude"
+	op:       string, // 1.7, sweep: "lathe" | "extrude" (1.8: "pipe"; 1.11: "rail")
 	axis:     string, // 1.7, sweep: "x" | "y" | "z"
 	profile:  Profile, // 1.7, sweep
 	segments: int, // 1.7, sweep (lathe): steps around the axis, 12 when 0
@@ -69,7 +69,8 @@ Shape3 :: struct {
 	radius:   Maybe(f32), // 1.8, pipe: the section's scale; 1 when absent
 	radii:    [dynamic]f32, // 1.8, pipe: one factor per path point, linear between
 	caps:     Maybe(bool), // 1.8, pipe: close the ends of an open pipe; true when absent
-	closed:   bool, // 1.8, pipe: the path joins its last point to its first
+	closed:   bool, // 1.8, pipe: the path joins its last point to its first (1.11: a rail's too)
+	round:    f32, // 1.11, rail: the radius its path's corners are rounded to; 0 leaves them sharp
 	rest:     []V3 `json:"-"`, // 1.8: under a morph, the rest cage the mods decide on (flatten_part_posed sets it)
 }
 
@@ -105,12 +106,14 @@ Texture_Map :: struct {
 	palette: string, // a palette file laid over the drawing's tokens; "" for none
 	state:   string, // which of the drawing's states; "" for its first
 	mode:    string, // "paint" (default) | "mask"
+	soften:  f32, // 1.10: a blur over the map, a Gaussian's deviation in pattern units, wrapping at the cell; 0 for none
 }
 
 Texture :: struct {
 	name: string,
 	cell: V2, // the tile, from [0, 0] in the maps' document space
 	maps: map[string]Texture_Map, // "color" is what a reader paints; the rest are the engine's
+	relief: f32, // 1.10: how far the height map's value 1 stands proud of 0, in pattern units; 0 for none
 }
 
 Anchor3 :: struct {

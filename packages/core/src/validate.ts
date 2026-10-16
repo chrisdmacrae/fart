@@ -42,7 +42,8 @@ export type ErrorCode =
 	| "shades"
 	| "skin"
 	| "mod"
-	| "pipe";
+	| "pipe"
+	| "rail";
 export type WarningCode = "unknown" | "reserved" | "unresolved";
 
 export interface Issue {
@@ -74,7 +75,7 @@ const KINDS = ["circle", "line", "poly", "path"];
 const KINDS3 = ["mesh", "ball", "rod", "sweep"];
 const COLLISION_KINDS3 = ["mesh", "ball", "rod", "box"];
 const SMOOTH_FIELDS = ["normals", "angle", "smooth", "creases", "bake"];
-const SWEEP_FIELDS = ["kind", "color", "shade", "op", "axis", "profile", "segments", "from", "to", "path", "radius", "radii", "caps", "closed"];
+const SWEEP_FIELDS = ["kind", "color", "shade", "op", "axis", "profile", "segments", "from", "to", "path", "radius", "radii", "caps", "closed", "round"];
 // 1.8: paint on meshes and sweeps, modifiers on both, shades where there are points
 const PAINT_FIELDS = ["colors", "paint", "mods"];
 const KNOWN_MOD: Record<string, string[]> = {
@@ -87,8 +88,8 @@ const SPACES = ["2d", "3d"];
 // "resolved" is a loader's palette cache that older writers leaked into files; ignored, never meant
 const KNOWN_TOP = ["version", "space", "name", "palette_refs", "palette", "parts", "states", "clips", "constraints", "collision", "textures", "meta", "resolved"];
 const TEXTURE_FIELDS = ["texture", "mapping"];
-const KNOWN_TEXTURE = ["name", "cell", "maps"];
-const KNOWN_MAP = ["ref", "palette", "state", "mode"];
+const KNOWN_TEXTURE = ["name", "cell", "maps", "relief"];
+const KNOWN_MAP = ["ref", "palette", "state", "mode", "soften"];
 const KNOWN_MAPPING2 = ["at", "angle", "scale", "xf"];
 const KNOWN_MAPPING3 = ["scale", "uvs"];
 const RESERVED_TOP: string[] = [];
@@ -379,6 +380,32 @@ function checkMods(ctx: Ctx, sh: Obj, path: string, nc: number) {
 
 /** 1.8: a pipe: a 3D path body, a radius and one factor per path point, an optional closed section. */
 function checkPipe(ctx: Ctx, sh: Obj, path: string) {
+	const n = checkSpine(ctx, sh, path);
+	if ("closed" in sh && typeof sh.closed !== "boolean") ctx.err("schema", `${path}/closed`, "expected true or false");
+	if ("caps" in sh && typeof sh.caps !== "boolean") ctx.err("schema", `${path}/caps`, "expected true or false");
+	if (sh.closed === true && n >= 0 && n < 3) ctx.err("pipe", `${path}/path/points`, "a closed pipe needs at least three path points");
+	if ("radius" in sh) ctx.number(sh.radius, `${path}/radius`, 0);
+	if ("radii" in sh && ctx.array(sh.radii, `${path}/radii`)) {
+		sh.radii.forEach((v, i) => ctx.number(v, `${path}/radii/${i}`, 0));
+		if (n >= 0 && sh.radii.length !== n) ctx.err("pipe", `${path}/radii`, `radii are one per path point: ${sh.radii.length} for ${n} points`);
+	}
+	if ("profile" in sh && ctx.object(sh.profile, `${path}/profile`)) checkPath(ctx, { ...sh.profile, closed: true }, `${path}/profile`);
+}
+
+/** 1.11: a rail: a 3D path body, a profile that stands along an axis (open, or closed for a moulding), a radius for the path's corners. */
+function checkRail(ctx: Ctx, sh: Obj, path: string) {
+	const n = checkSpine(ctx, sh, path);
+	if ("closed" in sh && typeof sh.closed !== "boolean") ctx.err("schema", `${path}/closed`, "expected true or false");
+	if ("caps" in sh && typeof sh.caps !== "boolean") ctx.err("schema", `${path}/caps`, "expected true or false");
+	if (sh.closed === true && n >= 0 && n < 3) ctx.err("rail", `${path}/path/points`, "a closed rail needs at least three path points");
+	if ("axis" in sh && sh.axis !== "x" && sh.axis !== "y" && sh.axis !== "z") ctx.err("schema", `${path}/axis`, "axis is x, y or z");
+	if ("round" in sh) ctx.number(sh.round, `${path}/round`, 0);
+	if (!ctx.object(sh.profile, `${path}/profile`)) return;
+	checkPath(ctx, { w: 0, ...sh.profile, closed: sh.profile.closed === true }, `${path}/profile`);
+}
+
+/** A sweep's `path` (1.8): a path body with three coordinates. How many points it has, or -1 when it is not sound. */
+function checkSpine(ctx: Ctx, sh: Obj, path: string): number {
 	let n = -1;
 	if (ctx.object(sh.path, `${path}/path`)) {
 		const body = sh.path;
@@ -395,15 +422,7 @@ function checkPipe(ctx: Ctx, sh: Obj, path: string) {
 		}
 		ctx.unknown(body, ["points", "in", "out"], [], bp);
 	}
-	if ("closed" in sh && typeof sh.closed !== "boolean") ctx.err("schema", `${path}/closed`, "expected true or false");
-	if ("caps" in sh && typeof sh.caps !== "boolean") ctx.err("schema", `${path}/caps`, "expected true or false");
-	if (sh.closed === true && n >= 0 && n < 3) ctx.err("pipe", `${path}/path/points`, "a closed pipe needs at least three path points");
-	if ("radius" in sh) ctx.number(sh.radius, `${path}/radius`, 0);
-	if ("radii" in sh && ctx.array(sh.radii, `${path}/radii`)) {
-		sh.radii.forEach((v, i) => ctx.number(v, `${path}/radii/${i}`, 0));
-		if (n >= 0 && sh.radii.length !== n) ctx.err("pipe", `${path}/radii`, `radii are one per path point: ${sh.radii.length} for ${n} points`);
-	}
-	if ("profile" in sh && ctx.object(sh.profile, `${path}/profile`)) checkPath(ctx, { ...sh.profile, closed: true }, `${path}/profile`);
+	return n;
 }
 
 /** 1.7: how a mesh (or a sweep) is lit and smoothed: normals, angle, smooth levels, creases over n points, a bake (1.8: with paint over `nc` colours, and shades). */
@@ -500,9 +519,11 @@ function checkTexture(ctx: Ctx, t: unknown, path: string): { name: string | null
 			if ("palette" in m && ctx.name(m.palette, `${mp}/palette`) && isAbsolutePath(m.palette)) ctx.err("path", `${mp}/palette`, "a map's palette is relative to this file, never absolute");
 			if ("state" in m) ctx.name(m.state, `${mp}/state`);
 			if ("mode" in m && m.mode !== "paint" && m.mode !== "mask") ctx.err("schema", `${mp}/mode`, "mode is paint or mask");
+			if ("soften" in m && !(isNum(m.soften) && m.soften >= 0)) ctx.err("schema", `${mp}/soften`, "soften is a radius: a number, zero or more");
 			ctx.unknown(m, KNOWN_MAP, [], mp);
 		}
 	}
+	if ("relief" in t) ctx.number(t.relief, `${path}/relief`);
 	ctx.unknown(t, KNOWN_TEXTURE, [], path);
 	return { name: named ? (t.name as string) : null, refs };
 }
@@ -644,8 +665,9 @@ function checkShape3(ctx: Ctx, sh: unknown, path: string, drawn: boolean): strin
 		}
 		case "sweep": {
 			const before = ctx.errors.length;
-			if (sh.op !== "lathe" && sh.op !== "extrude" && sh.op !== "pipe") ctx.err("schema", `${path}/op`, "op is lathe, extrude or pipe");
+			if (sh.op !== "lathe" && sh.op !== "extrude" && sh.op !== "pipe" && sh.op !== "rail") ctx.err("schema", `${path}/op`, "op is lathe, extrude, pipe or rail");
 			if (sh.op === "pipe") checkPipe(ctx, sh, path);
+			else if (sh.op === "rail") checkRail(ctx, sh, path);
 			else {
 				if (sh.axis !== "x" && sh.axis !== "y" && sh.axis !== "z") ctx.err("schema", `${path}/axis`, "axis is x, y or z");
 				if (!ctx.object(sh.profile, `${path}/profile`)) break;

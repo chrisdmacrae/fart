@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "space": "3d",
+  "name": "rail-no-profile",
+  "palette": [
+    {
+      "name": "rock",
+      "rgb": [
+        150,
+        140,
+        130,
+        255
+      ]
+    },
+    {
+      "name": "turf",
+      "rgb": [
+        90,
+        170,
+        80,
+        255
+      ]
+    },
+    {
+      "name": "stone",
+      "rgb": [
+        190,
+        190,
+        195,
+        255
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "a",
+      "pivot": [
+        0,
+        0,
+        0
+      ],
+      "shapes": [
+        {
+          "kind": "sweep",
+          "color": "rock",
+          "op": "rail",
+          "path": {
+            "points": [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                4,
+                0,
+                0
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

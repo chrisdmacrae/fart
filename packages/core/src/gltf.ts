@@ -21,6 +21,10 @@ export interface GltfOptions {
 	fps?: number;
 	/** 1.5: a PNG of each texture's colour map, by texture name; textured primitives sample it with wrapping */
 	images?: Record<string, Uint8Array>;
+	/** 1.10: a tangent-space normal map per texture (green up the image), from its relief; those primitives carry tangents */
+	normals?: Record<string, Uint8Array>;
+	/** 1.10: occlusion, roughness and metallic packed in r, g and b, per texture */
+	orms?: Record<string, Uint8Array>;
 	/**
 	 * 1.8: write the compiled sidecar's layout (`name.fart.glb`): a
 	 * primitive per shape and token with the token's name in its extras, a
@@ -93,6 +97,45 @@ function quatYUp(q: Quat): Quat {
 const ID3: Xf3 = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
 const REFLECT3: Xf3 = [-1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
 
+/**
+ * Tangents for flat triangles (three vertices each): xyz along +u, square
+ * to the vertex normal, and w so that cross(normal, tangent) × w runs up
+ * the image (toward smaller v), where a normal map's green points.
+ */
+function tangents(pos: Float32Array, nor: Float32Array, uv: Float32Array): Float32Array {
+	const out = new Float32Array((pos.length / 3) * 4);
+	for (let t = 0; t < pos.length / 9; t++) {
+		const p = (k: number): Vec3 => [pos[t * 9 + k * 3], pos[t * 9 + k * 3 + 1], pos[t * 9 + k * 3 + 2]];
+		const [p0, p1, p2] = [p(0), p(1), p(2)];
+		const e1: Vec3 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+		const e2: Vec3 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+		const du1 = uv[t * 6 + 2] - uv[t * 6];
+		const dv1 = uv[t * 6 + 3] - uv[t * 6 + 1];
+		const du2 = uv[t * 6 + 4] - uv[t * 6];
+		const dv2 = uv[t * 6 + 5] - uv[t * 6 + 1];
+		const det = du1 * dv2 - du2 * dv1;
+		const ok = Math.abs(det) > 1e-12;
+		// along +u, and along +v (down the image)
+		const T: Vec3 = ok ? [(e1[0] * dv2 - e2[0] * dv1) / det, (e1[1] * dv2 - e2[1] * dv1) / det, (e1[2] * dv2 - e2[2] * dv1) / det] : e1;
+		const B: Vec3 = ok ? [(e2[0] * du1 - e1[0] * du2) / det, (e2[1] * du1 - e1[1] * du2) / det, (e2[2] * du1 - e1[2] * du2) / det] : e2;
+		for (let k = 0; k < 3; k++) {
+			const n: Vec3 = [nor[t * 9 + k * 3], nor[t * 9 + k * 3 + 1], nor[t * 9 + k * 3 + 2]];
+			const d = n[0] * T[0] + n[1] * T[1] + n[2] * T[2];
+			let x = T[0] - n[0] * d;
+			let y = T[1] - n[1] * d;
+			let z = T[2] - n[2] * d;
+			const l = Math.hypot(x, y, z) || 1;
+			x /= l;
+			y /= l;
+			z /= l;
+			const c: Vec3 = [n[1] * z - n[2] * y, n[2] * x - n[0] * z, n[0] * y - n[1] * x];
+			const w = c[0] * B[0] + c[1] * B[1] + c[2] * B[2] <= 0 ? 1 : -1;
+			out.set([x, y, z, w], (t * 3 + k) * 4);
+		}
+	}
+	return out;
+}
+
 /** The document as a binary glTF. */
 export function toGlb(doc: Doc3, opts: GltfOptions = {}): Uint8Array {
 	const tokens = opts.tokens ?? doc.palette ?? [];
@@ -136,13 +179,32 @@ export function toGlb(doc: Doc3, opts: GltfOptions = {}): Uint8Array {
 	const images: Record<string, unknown>[] = [];
 	const textures: Record<string, unknown>[] = [];
 	const materialOf = new Map<string, number>();
-	for (const [name, png] of Object.entries(opts.images ?? {})) {
-		if (!(doc.textures ?? []).some((t) => t.name === name)) continue;
-		const view = pushView(png);
-		images.push({ name, mimeType: "image/png", bufferView: view });
-		textures.push({ name, source: images.length - 1, sampler: 0 });
-		materials.push({ name, pbrMetallicRoughness: { baseColorTexture: { index: textures.length - 1 }, baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 } });
-		materialOf.set(name, materials.length - 1);
+	const tangentsFor = new Set<string>();
+	const image = (name: string, png: Uint8Array, sampler: number): { index: number } => {
+		images.push({ name, mimeType: "image/png", bufferView: pushView(png) });
+		textures.push({ name, source: images.length - 1, sampler });
+		return { index: textures.length - 1 };
+	};
+	for (const t of doc.textures ?? []) {
+		const color = opts.images?.[t.name];
+		const normal = opts.normals?.[t.name];
+		const orm = opts.orms?.[t.name];
+		if (!color && !normal && !orm) continue;
+		// relief (1.10): a texture with a normal map, packed scalars or a softened colour map is a surface, not pixel art: it filters
+		const sampler = normal || orm || (t.maps.color?.soften ?? 0) > 0 ? 1 : 0;
+		const pbr: Record<string, unknown> = { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 };
+		const material: Record<string, unknown> = { name: t.name, pbrMetallicRoughness: pbr };
+		if (color) pbr.baseColorTexture = image(t.name, color, sampler);
+		if (normal) material.normalTexture = image(`${t.name}.normal`, normal, sampler);
+		if (orm) {
+			const tex = image(`${t.name}.orm`, orm, sampler);
+			pbr.metallicRoughnessTexture = tex;
+			pbr.metallicFactor = 1;
+			if (t.maps.ao) material.occlusionTexture = tex;
+		}
+		materials.push(material);
+		materialOf.set(t.name, materials.length - 1);
+		if (normal) tangentsFor.add(t.name);
 	}
 	// morphs (1.6): every pose that reshapes a part is a target of its mesh, named by its source
 	// (a state's name, or clip#key for an inline key); each sampled frame weighs the two it sits between
@@ -280,6 +342,7 @@ export function toGlb(doc: Doc3, opts: GltfOptions = {}): Uint8Array {
 				if (uv) {
 					attributes.TEXCOORD_0 = pushAccessor(uv, "VEC2", ARRAY_BUFFER);
 					material = materialOf.get(tm.texture!) ?? 0;
+					if (tangentsFor.has(tm.texture!)) attributes.TANGENT = pushAccessor(tangents(pos, nor, uv), "VEC4", ARRAY_BUFFER);
 				}
 				if (shade) attributes._SHADE = pushAccessor(shade, "SCALAR", ARRAY_BUFFER);
 				if (jn && jw) {
@@ -461,7 +524,10 @@ export function toGlb(doc: Doc3, opts: GltfOptions = {}): Uint8Array {
 	if (images.length) {
 		gltf.images = images;
 		gltf.textures = textures;
-		gltf.samplers = [{ magFilter: 9728, minFilter: 9728, wrapS: 10497, wrapT: 10497 }];
+		gltf.samplers = [
+			{ magFilter: 9728, minFilter: 9728, wrapS: 10497, wrapT: 10497 },
+			{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 },
+		];
 	}
 
 	// the container: header, a JSON chunk padded with spaces, a BIN chunk padded with zeros

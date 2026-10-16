@@ -101,6 +101,9 @@ import {
 	deleteMap,
 	setSelTexture,
 	setSelMappingScale,
+	setTextureRelief,
+	unwrapSel,
+	boxMapSel,
 	paintToken,
 	faceToken,
 	modsOf,
@@ -1235,6 +1238,16 @@ export function Inspector3() {
 							{sh.mapping?.uvs && <Chip title="explicit pattern coordinates per corner, from the file">uvs</Chip>}
 						</Property>
 					)}
+					{sh.texture && sh.kind === "mesh" && (
+						<Property label="Sheet" title="Unwrap: the texture becomes a sheet. Every mesh that wears it has its faces laid flat as islands, packed into the cell (explicit uvs)">
+							<Button onClick={unwrapSel}>Unwrap</Button>
+							{sh.mapping?.uvs && (
+								<Button title="Drop the explicit uvs and box map again" onClick={boxMapSel}>
+									Box map
+								</Button>
+							)}
+						</Property>
+					)}
 					{sh.kind === "ball" && (
 						<>
 							<Trio label="Centre" value={sh.at} onAxis={(ax, v) => setShapeCoord(sel, "at", ax, v)} />
@@ -1453,6 +1466,7 @@ export function Inspector3() {
 							remove: deleteTexture,
 							rename: renameTexture,
 							cell: setTextureCell,
+							relief: setTextureRelief,
 							map: setMap,
 							addMap,
 							removeMap: deleteMap,

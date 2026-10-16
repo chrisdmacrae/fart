@@ -23,3 +23,4 @@ export * from "./curves.ts";
 export * from "./subdiv.ts";
 export * from "./mods.ts";
 export * from "./gltfImport.ts";
+export * from "./unwrap.ts";

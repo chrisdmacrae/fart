@@ -84,6 +84,8 @@ export interface Shell {
 	home(): Promise<string>;
 	defaultRoot(): Promise<string>;
 	listFiles(root: string): Promise<string[]>;
+	/** a word that changes whenever the project's files do (added, removed, written), whoever did it; "" when it cannot be had */
+	stamp(root: string): Promise<string>;
 	/** what each file is ("2D", "3D", "palette", "scene", "3D scene"), sniffed without parsing */
 	kinds(root: string): Promise<Record<string, FileInfo>>;
 	readFile(root: string, rel: string): Promise<string | null>;
@@ -266,6 +268,10 @@ class HttpShell implements Shell {
 	async listFiles() {
 		const r = await fetch("api/list");
 		return r.ok ? ((await r.json()) as string[]) : [];
+	}
+	async stamp() {
+		const r = await fetch("api/stamp").catch(() => null);
+		return r?.ok ? ((await r.json()) as string) : "";
 	}
 	async kinds() {
 		const r = await fetch("api/kinds");

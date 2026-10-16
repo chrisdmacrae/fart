@@ -567,12 +567,44 @@ async function readThumbs() {
 	} else void readThumbs();
 }
 
-export async function refreshFiles() {
+// The folder is watched: every couple of seconds, and whenever the window comes back to the front, the shell is asked
+// for the project's stamp, and the folder is re-read when it has changed. So a file made, moved or written by anything
+// else (a script, git, another editor, Claude) shows up without a click. Nothing is read while the window is hidden.
+const WATCH_MS = 2000;
+let watchStamp: string | null = null;
+let watchRoot: string | null = null;
+let watching = false;
+async function watchTick() {
+	const root = project.root.value;
+	if (root === null || watching || project.busy.value || document.hidden) return;
+	watching = true;
+	try {
+		const stamp = await shell.stamp(root);
+		if (!stamp || root !== project.root.value) return;
+		// (until the folder has been read once there is nothing to compare with: reading it leaves the stamp it was read at)
+		if (watchRoot !== root || watchStamp === null || stamp === watchStamp) return;
+		await refreshFiles(true);
+	} finally {
+		watching = false;
+	}
+}
+if (typeof window !== "undefined") {
+	window.setInterval(() => void watchTick(), WATCH_MS);
+	window.addEventListener("focus", () => void watchTick());
+	document.addEventListener("visibilitychange", () => void watchTick());
+}
+
+/** Read the folder again. `quiet`: the watcher's own re-read, with no busy mark (nothing was asked for). */
+export async function refreshFiles(quiet = false) {
 	const root = project.root.value;
 	if (root === null) return;
-	project.busy.value = true;
+	if (!quiet) project.busy.value = true;
+	// the stamp is taken before the list: a change that lands between the two is seen again by the next tick, never missed
+	const stamp = await shell.stamp(root).catch(() => "");
 	const files = await shell.listFiles(root);
 	if (root !== project.root.value) return;
+	watchRoot = root;
+	watchStamp = stamp || null;
 	const [hasStat, kinds] = await Promise.all([shell.stat(root, "assets"), shell.kinds(root).catch(() => ({}) as Record<string, FileInfo>)]);
 	const hasAssets = files.some((f) => f.startsWith("assets/")) || hasStat !== null;
 	if (root !== project.root.value) return;

@@ -151,6 +151,7 @@ export function initCommands() {
 		{ id: "edit.paste", title: "Paste", group: "Edit", when: inEditor, run: pasteClip },
 		{ id: "edit.cut", title: "Cut", group: "Edit", when: inEditor, run: cutSel },
 		{ id: "edit.duplicate", title: "Duplicate", group: "Edit", when: inAny, run: either(dupSel, M.dupSel, () => S.selectNodes(S.selectedRoots().map((p) => S.duplicateNode(p)).filter((p): p is string => !!p))) },
+		{ id: "model.unwrap", title: "Unwrap texture into a sheet", group: "Edit", when: () => inModel() && !!M.md.sel.value, run: M.unwrapSel },
 		{ id: "model.mirror", title: "Mirror across x", group: "Edit", when: () => inModel() && !!M.md.sel.value, run: M.mirrorSel },
 		{ id: "edit.delete", title: "Delete", group: "Edit", when: inAny, run: either(deleteSel, M.deleteSel, () => S.selectedRoots().forEach((p) => S.deleteNode(p))) },
 		{ id: "edit.selectAll", title: "Select all", group: "Edit", when: () => (setup() && inEditor()) || meshSel(), run: either(selectAll, M.chooseAll) },

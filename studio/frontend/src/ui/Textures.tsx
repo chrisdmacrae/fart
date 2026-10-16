@@ -19,6 +19,8 @@ export interface TexturesApi {
 	remove: (i: number) => void;
 	rename: (i: number, name: string) => void;
 	cell: (i: number, axis: 0 | 1, v: number) => void;
+	/** 1.10: the height map's size, in pattern units */
+	relief: (i: number, v: number) => void;
 	map: (i: number, map: string, patch: Partial<TextureMap>) => void;
 	addMap: (i: number, map: string) => void;
 	removeMap: (i: number, map: string) => void;
@@ -98,6 +100,11 @@ export function TexturesPanel({ api }: { api: TexturesApi }) {
 							<NumberField axis="x" label="Cell width" value={t.cell[0]} min={0.01} step={0.1} stepper={false} onChange={(v) => api.cell(i, 0, v)} onDone={endGesture} />
 							<NumberField axis="y" label="Cell height" value={t.cell[1]} min={0.01} step={0.1} stepper={false} onChange={(v) => api.cell(i, 1, v)} onDone={endGesture} />
 						</Property>
+						{t.maps.height && (
+							<Property label="Relief" title="How far the height map's white stands proud of its black, in the drawing's units. The 3D view lights by it, and a build bakes it to a normal map. 0 for none">
+								<NumberField label="Relief" value={t.relief ?? 0} step={0.1} stepper={false} onChange={(v) => api.relief(i, v)} onDone={endGesture} />
+							</Property>
+						)}
 						{Object.entries(t.maps).map(([name, m]) => (
 							<div class="ed-map" key={name}>
 								<div
@@ -141,6 +148,9 @@ export function TexturesPanel({ api }: { api: TexturesApi }) {
 										value={m.mode ?? "paint"}
 										onChange={(v) => api.map(i, name, { mode: v as TextureMap["mode"] })}
 									/>
+								</Property>
+								<Property label="Soften" title="A blur over the map, in the drawing's units: a hard line becomes a ridge with a slope. 0 leaves it as drawn">
+									<NumberField label="Soften" value={m.soften ?? 0} min={0} step={0.1} stepper={false} onChange={(v) => api.map(i, name, { soften: v })} onDone={endGesture} />
 								</Property>
 							</div>
 						))}

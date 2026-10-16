@@ -7,3 +7,5 @@ node_modules/
 *.zip
 # compiled sidecars are build artifacts (fart build)
 *.fart.glb
+# experiments: generated models that are not part of the repo
+/scratch/

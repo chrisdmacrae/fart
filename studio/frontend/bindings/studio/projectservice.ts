@@ -311,6 +311,16 @@ export function SidecarIgnore(root: string): $CancellablePromise<string> {
 }
 
 /**
+ * Stamp is a short word that changes whenever the project's files do:
+ * one added, removed, renamed or written, by this app or by anything
+ * else. The navigator asks for it every couple of seconds and re-reads
+ * the folder when it differs. One walk, no file opened.
+ */
+export function Stamp(root: string): $CancellablePromise<string> {
+    return $Call.ByID(800464495, root);
+}
+
+/**
  * Stat says whether rel exists under root and when it was last written (unix ms).
  */
 export function Stat(root: string, rel: string): $CancellablePromise<$models.Text> {

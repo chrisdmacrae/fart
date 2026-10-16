@@ -553,3 +553,28 @@ subdivision_carries_pattern_coordinates :: proc(t: ^testing.T) {
 	testing.expectf(t, hi > 3.9 && lo >= 0, "the pattern runs 0 to 4 over each face, got %v to %v", lo, hi)
 	fart.destroy_3d(&doc)
 }
+
+// 1.10: soften and relief are read; an unwrapped sheet's uvs come out of flattening, through the subdivision.
+@(test)
+relief_3d :: proc(t: ^testing.T) {
+	context.allocator = context.temp_allocator
+	data, err := os.read_entire_file(EXAMPLES + "valid/dented.fart", context.temp_allocator)
+	if !testing.expect(t, err == nil) do return
+	doc, ok := fart.load_bytes_3d(data)
+	if !testing.expect(t, ok, "dented loads") do return
+	testing.expect(t, abs(doc.textures[0].relief - 0.5) < 1e-6, "relief")
+	testing.expect(t, abs(doc.textures[0].maps["height"].soften - 0.4) < 1e-6, "soften")
+	testing.expect_value(t, len(doc.parts[0].shapes[0].mapping.uvs), 6)
+	ms := make([dynamic]fart.Tri_Mesh, context.temp_allocator)
+	fart.flatten_part(&doc, &doc.parts[0], &ms)
+	// six cage faces, subdivided once: twenty-four quads, forty-eight triangles, each corner with its uv
+	testing.expect_value(t, len(ms[0].positions), 48 * 3)
+	testing.expect_value(t, len(ms[0].uvs), 48 * 3)
+	lo, hi := fart.V2{16, 16}, fart.V2{0, 0}
+	for uv in ms[0].uvs {
+		lo = {min(lo.x, uv.x), min(lo.y, uv.y)}
+		hi = {max(hi.x, uv.x), max(hi.y, uv.y)}
+	}
+	// the sheet, not box mapping (which would span -4..4 on an 8-unit block)
+	testing.expect(t, lo.x > 0 && lo.y > 0 && hi.x > 8 && hi.x <= 16 && hi.y <= 16, "the uvs are the unwrapped sheet's")
+}

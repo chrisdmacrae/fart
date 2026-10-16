@@ -23,6 +23,9 @@ export class WailsShell implements Shell {
 	async listFiles(root: string) {
 		return (await Project.ListFiles(root)) ?? [];
 	}
+	async stamp(root: string) {
+		return (await Project.Stamp(root).catch(() => "")) ?? "";
+	}
 	async kinds(root: string) {
 		const out: Record<string, FileInfo> = {};
 		for (const [rel, i] of Object.entries((await Project.Kinds(root)) ?? {})) if (i) out[rel] = { kind: i.kind, refs: i.refs ?? [] };

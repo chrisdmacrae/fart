@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "textures": [
+    {
+      "name": "t",
+      "cell": [
+        1,
+        1
+      ],
+      "maps": {
+        "height": {
+          "ref": "x.fart",
+          "soften": -1
+        }
+      }
+    }
+  ]
+}
