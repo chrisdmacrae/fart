@@ -48,6 +48,9 @@ func TestMeshToolsListed(t *testing.T) {
 		"mesh_modifiers":       {"mods"},
 		"mesh_apply_modifier":  nil,
 		"mesh_shade":           nil,
+		"mesh_sculpt_stroke":   {"brush", "points", "radius"},
+		"mesh_sculpt_filter":   {"filter", "amount"},
+		"mesh_subdivide":       nil,
 	}
 	seen := map[string]bool{}
 	for _, tool := range out.Result.Tools {

@@ -11,7 +11,7 @@ bone clock git-commit-horizontal hammer triangle-alert circle-check sun moon eye
 send undo-2 redo-2 trash-2 pause skip-back folder-plus file-plus refresh-cw external-link arrow-up-down
 sliders-horizontal history pen-tool crosshair anchor circle-help copy pencil info wifi group magnet
 list-tree spline blend square-dashed git-compare arrow-down panel-bottom monitor target link unlink flip-horizontal-2
-maximize zoom-in corner-down-right circle-stop sparkles route paintbrush cylinder`.split(/\s+/);
+maximize zoom-in corner-down-right circle-stop sparkles route paintbrush cylinder brush`.split(/\s+/);
 
 const pascal = (n) => n.replace(/(^|-)([a-z0-9])/g, (_, __, c) => c.toUpperCase());
 const out = {};

@@ -58,6 +58,7 @@ import { surfaceUnder, surfaceBelow } from "./surface3.ts";
 import { project as proj } from "../state/project.ts";
 import { MeshError } from "../state/meshops.ts";
 import { meshActive, meshDown, meshMove, meshCancel } from "./meshtool3.ts";
+import { sculptDown, sculptMove, sculptUp, sculptCancel, sculptAdjust, drawSculpt } from "./sculpt3.ts";
 import { work, refImage, refViewOf } from "../state/workspace.ts";
 import { project } from "../state/project.ts";
 
@@ -65,6 +66,8 @@ export interface Mods {
 	shift: boolean;
 	alt: boolean;
 	cmd?: boolean;
+	/** a pen's pressure, 0 to 1; absent for a mouse */
+	pressure?: number;
 }
 
 export const ix3 = {
@@ -91,6 +94,8 @@ export const ix3 = {
 	brushing: false,
 	/** the point of the selected pipe's path a drag is moving */
 	pipeDrag: null as number | null,
+	/** a sculpt stroke is under way */
+	sculpting: false,
 	mods: { shift: false, alt: false, cmd: false } as Mods,
 };
 
@@ -493,6 +498,17 @@ export function onDown(wm: Vec2, mods: Mods) {
 		ix3.down = false;
 		return;
 	}
+	// sculpting: a press on the mesh is a stroke, anywhere else it orbits
+	if (md.sculpting.value && !curClip()) {
+		if (sculptDown(wm, mods)) {
+			ix3.sculpting = true;
+			return;
+		}
+		ix3.orbiting = true;
+		ix3.orbitLast = wm;
+		orbitStart();
+		return;
+	}
 	// a handle grabbed, or a keyed transform kept by the click
 	// (the handles stand aside for the pipe tool and the brush, which click on the mesh they sit over)
 	const busyTool = md.tool.value === "pipe" || md.painting.value;
@@ -644,11 +660,16 @@ export function onMove(wm: Vec2, mods: Mods) {
 		meshMove(wm, mods.shift);
 		return;
 	}
+	if (sculptAdjust.value || ix3.sculpting) {
+		sculptMove(wm, mods);
+		return;
+	}
 	if (gizmoActive()) {
 		gizmoMove(wm, mods.shift);
 		return;
 	}
 	if (!ix3.down) {
+		if (md.sculpting.value) return;
 		gizmoHover(wm);
 		// what a click would choose on the selected mesh
 		const select = md.tool.value === "select" && !curClip();
@@ -733,6 +754,11 @@ export function onMove(wm: Vec2, mods: Mods) {
 export function onUp(wm: Vec2, mods: Mods) {
 	ix3.down = false;
 	ix3.mods = mods;
+	if (ix3.sculpting) {
+		ix3.sculpting = false;
+		sculptUp();
+		return;
+	}
 	const g = gizmoUp();
 	if (g === "click") {
 		// a click on a handle, not a drag: what lies under it is what was meant, a corner, an edge or a face of the selected mesh first
@@ -793,6 +819,8 @@ export function cancelGesture() {
 	ix3.orbiting = false;
 	ix3.brushing = false;
 	ix3.pipeDrag = null;
+	if (ix3.sculpting) sculptUp();
+	ix3.sculpting = false;
 	endGesture();
 }
 
@@ -842,6 +870,11 @@ export function polyEnter() {
 }
 export function escape() {
 	if (meshCancel()) return;
+	if (sculptCancel()) return;
+	if (md.sculpting.value) {
+		md.sculpting.value = false;
+		return;
+	}
 	if (gizmoCancel()) return;
 	if (md.polyPts.value.length) {
 		md.polyPts.value = [];
@@ -1012,10 +1045,11 @@ export function render3(ctx: CanvasRenderingContext2D, W: number, H: number, dpr
 
 	world();
 	for (const sh of hovShapes) if (!selShapes.includes(sh)) outlineShape(ctx, sh, HOVER, LW, zoom);
-	for (const sh of selShapes) outlineShape(ctx, sh, ACCENT, 1.5 * LW, zoom);
+	// (sculpting shows the surface alone, the way clay is: no wire, no corners)
+	if (!md.sculpting.value) for (const sh of selShapes) outlineShape(ctx, sh, ACCENT, 1.5 * LW, zoom);
 
 	// the selected mesh, for editing: its wire, what is chosen on it, what a click would choose, its corners
-	const mv = preview ? null : meshView();
+	const mv = preview || md.sculpting.value ? null : meshView();
 	const selP = selShapePosed();
 	if (mv && selP && selP.kind === "mesh") {
 		const mode = md.pick.value;
@@ -1262,13 +1296,15 @@ export function render3(ctx: CanvasRenderingContext2D, W: number, H: number, dpr
 	}
 
 	// the axis handles of what is chosen: arrows to move, rings to turn
-	if (md.tool.value !== "pipe" && !md.painting.value) {
+	if (md.tool.value !== "pipe" && !md.painting.value && !md.sculpting.value) {
 		screen();
 		drawGizmo(ctx, toS);
 	}
+	screen();
+	drawSculpt(ctx, toS, ix3.cursor, ACCENT, C.mask);
 
 	// the current part's pivot and lever
-	const pl = pivotLever();
+	const pl = md.sculpting.value ? null : pivotLever();
 	if (pl && (!preview || md.partPicked.value)) {
 		screen();
 		const a = toS(pl.at);

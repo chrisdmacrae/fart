@@ -13,6 +13,8 @@ import * as M from "./model.ts";
 import { VIEWS, type Vec3 } from "@fastart/core";
 import { turned } from "../canvas/orbit.ts";
 import * as G from "./meshops.ts";
+import * as Sc from "./sculpting.ts";
+import type { Brush, Falloff, Filter } from "./sculpt.ts";
 import { importTool } from "./importGltf.ts";
 import { parseDoc, resolvePalettes, colorOf, viewXf3, worldTransforms3, xf3Mul, type Mod, type Token } from "@fastart/core";
 import { buildSidecars, sidecarOf, sidecars } from "./sidecar.ts";
@@ -489,6 +491,49 @@ function surfaceTool(name: string, args: Record<string, unknown>): Result {
 	}
 }
 
+// ------------------------------------------------------------- sculpting
+
+const SCULPT_TOOLS = new Set(["mesh_sculpt_stroke", "mesh_sculpt_filter", "mesh_subdivide"]);
+const BRUSH_NAMES = ["draw", "drawSharp", "clay", "clayStrips", "layer", "inflate", "blob", "crease", "smooth", "flatten", "fill", "scrape", "pinch", "grab", "elastic", "snakeHook", "thumb", "nudge", "rotate", "mask"];
+const FALLOFF_NAMES = ["smooth", "sphere", "root", "sharp", "linear", "constant"];
+const FILTER_NAMES = ["inflate", "smooth", "scale", "sharpen", "random", "relax"];
+
+/** Sculpting from Claude: a stroke along a path, a filter, a subdivision. One undo step each; the answer says what the mesh is now. */
+function sculptTool(name: string, args: Record<string, unknown>): Result {
+	if (!inModel()) return fail("sculpting works on a 3D model open in the model screen; open_file one first");
+	try {
+		const s = meshTarget(args);
+		const part = M.parts()[s.part].name;
+		let done: string;
+		if (name === "mesh_subdivide") done = Sc.subdivideShape(s);
+		else if (name === "mesh_sculpt_filter") {
+			if (typeof args.filter !== "string" || !FILTER_NAMES.includes(args.filter)) throw new G.MeshError(`filter must be one of ${FILTER_NAMES.join(", ")}`);
+			done = Sc.filterShape(s, args.filter as Filter, num(args.amount, "amount"));
+		} else {
+			if (typeof args.brush !== "string" || !BRUSH_NAMES.includes(args.brush)) throw new G.MeshError(`brush must be one of ${BRUSH_NAMES.join(", ")}`);
+			if (args.falloff !== undefined && !(typeof args.falloff === "string" && FALLOFF_NAMES.includes(args.falloff))) throw new G.MeshError(`falloff must be one of ${FALLOFF_NAMES.join(", ")}`);
+			if (!Array.isArray(args.points) || !args.points.length) throw new G.MeshError("points must be one or more [x, y, z] in the part's own space");
+			const axes = Array.isArray(args.mirror) ? args.mirror : [];
+			if (!axes.every((a) => a === "x" || a === "y" || a === "z")) throw new G.MeshError('mirror must be a list of "x", "y", "z"');
+			done = Sc.strokeShape(s, {
+				brush: args.brush as Brush,
+				points: args.points.map((p, i) => vec3(p, `points[${i}]`)),
+				radius: num(args.radius, "radius"),
+				strength: args.strength === undefined ? undefined : Math.max(0, Math.min(1, num(args.strength, "strength"))),
+				invert: args.invert === true,
+				falloff: args.falloff as Falloff | undefined,
+				autoSmooth: args.autoSmooth === undefined ? undefined : num(args.autoSmooth, "autoSmooth"),
+				mirror: [axes.includes("x"), axes.includes("y"), axes.includes("z")],
+			});
+		}
+		chatNote(`Claude changed ${part} · ${done}`);
+		return text(JSON.stringify({ done, part, shape: s.shape, now: report(s), undo: "one step" }));
+	} catch (e) {
+		if (e instanceof G.MeshError) return fail(e.message);
+		throw e;
+	}
+}
+
 /** A pipe from points, from Claude: a sweep along them in a part, landed on a shape's surface when asked. One undo step. */
 function pipeTool(args: Record<string, unknown>): Result {
 	if (!inModel()) return fail("pipe works on a 3D model open in the model screen; open_file one first");
@@ -673,7 +718,7 @@ export async function handleTool(call: ToolCall, direct?: (r: Result) => void) {
 				result = await importTool(args);
 				break;
 			default:
-				result = SURFACE_TOOLS.has(call.name) ? surfaceTool(call.name, args) : call.name.startsWith("mesh_") ? meshTool(call.name, args) : fail(`no tool named ${call.name}`);
+				result = SURFACE_TOOLS.has(call.name) ? surfaceTool(call.name, args) : SCULPT_TOOLS.has(call.name) ? sculptTool(call.name, args) : call.name.startsWith("mesh_") ? meshTool(call.name, args) : fail(`no tool named ${call.name}`);
 		}
 	} catch (e) {
 		result = fail(`the editor failed: ${String(e)}`);

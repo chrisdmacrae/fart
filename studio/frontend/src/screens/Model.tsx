@@ -14,6 +14,8 @@ import { GenLine } from "../ui/Inspector.tsx";
 import { project } from "../state/project.ts";
 import { gizmoStatus } from "../canvas/gizmo3.ts";
 import { meshStatus } from "../canvas/meshtool3.ts";
+import { sculptStatus } from "../canvas/sculpt3.ts";
+import { SculptSection } from "../ui/Sculpt.tsx";
 import { shell } from "../shell/shell.ts";
 import { ask } from "../state/prompt.ts";
 import { dirname } from "../state/paths.ts";
@@ -168,7 +170,7 @@ const EASES: Ease[] = ["linear", "in", "out", "in-out", "step"];
 
 /** The status bar's line: the mode, and what a gesture does in it. */
 export function modelStatus(): string {
-	const moving = meshStatus() ?? gizmoStatus();
+	const moving = meshStatus() ?? sculptStatus() ?? gizmoStatus();
 	if (moving) return moving;
 	const tool = md.tool.value;
 	const st = curState();
@@ -197,7 +199,7 @@ export function modelStatus(): string {
 		const what = md.pick.value === "corner" ? "corners" : md.pick.value === "edge" ? "edges" : "faces";
 		const sym = mirrorOn(parts()[md.sel.value!.part]?.name ?? "", md.sel.value!.shape) && !mirrorModOn(sh) ? " · mirrored across x" : "";
 		const cage = sh.mods?.length ? ` · the cage under ${plural(sh.mods.length, "modifier")}` : "";
-		return `${st.name} · ${vn} · choosing ${what}${sym}${cage} · ⇧ adds · E extrudes, I insets, K cuts a loop, M merges, B paints · G T S move, turn and size what is chosen`;
+		return `${st.name} · ${vn} · choosing ${what}${sym}${cage} · ⇧ adds · E extrudes, I insets, K cuts a loop, M merges, B paints, ⇧Tab sculpts · G T S move, turn and size what is chosen`;
 	}
 	if (st) return `${st.name} · ${vn} · Arrows move along an axis, rings turn about one · G T S move, turn and size by key · middle-drag orbits`;
 	return "";
@@ -216,6 +218,7 @@ export function ModelTools() {
 				disabled={(t) => !!clip && t !== "select"}
 				why="A clip poses its keys; pick a state to model"
 				modes={[
+					{ id: "sculpt", command: "mesh.sculpt", label: "Sculpt: brushes push, pull and smooth the selected mesh like clay", icon: "brush", key: "⇧Tab", on: md.sculpting.value, disabled: !!clip || selShape()?.kind !== "mesh", why: clip ? "A clip poses parts, not meshes; pick a state to sculpt" : "Select a mesh to sculpt it" },
 					{ id: "deform", command: "edit.deform", label: "Deform: corner drags reshape the part in this state only", icon: "spline", key: "D", on: md.deform.value, disabled: !!clip, why: "A clip poses parts, not meshes; pick a state to deform" },
 					{ id: "outline", command: "model.outline", label: "Silhouettes, the way Project draws them", icon: "square-dashed", on: md.outline.value },
 					{ id: "collision", command: "view.collision", label: "Collision solids", icon: "shield", key: "C", on: md.collide.value },
@@ -1376,7 +1379,8 @@ export function Inspector3() {
 					</div>
 				</InspectorSection>
 			)}
-			{sh && sel && sh.kind === "mesh" && !preview && !md.also.value.length && <MeshSection sel={sel} />}
+			{sh && sel && sh.kind === "mesh" && !preview && !md.also.value.length && md.sculpting.value && <SculptSection />}
+			{sh && sel && sh.kind === "mesh" && !preview && !md.also.value.length && !md.sculpting.value && <MeshSection sel={sel} />}
 			{sh && sel && (sh.kind === "mesh" || sh.kind === "sweep") && !preview && !md.also.value.length && <ModifiersSection sel={sel} />}
 			{p && picked && (
 				<InspectorSection title="Part" hint="a part: the unit that poses" tail={p.name}>

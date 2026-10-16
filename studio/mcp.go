@@ -312,6 +312,21 @@ func init() {
 		meshTool("mesh_apply_modifier", "Bake modifiers into plain geometry: the one at index and every one before it (absent: all of them). Paint, shades, creases and morphs are carried; a sweep becomes the mesh it made. Do this only when the geometry itself must be edited: a modifier left in place stays adjustable.", nil, map[string]any{
 			"index": map[string]any{"type": "integer", "description": "the last modifier to apply, from 0; absent, every modifier"},
 		}),
+		meshTool("mesh_sculpt_stroke", "Sculpt a mesh like clay along a path, as a brush stroke in Uranus's sculpt mode does: dabs a tenth of the radius apart, each on the surface nearest the path. Brushes: draw (out along the normal; invert pushes in), drawSharp, clay, clayStrips, layer (to one height), inflate, blob, crease (pinched indent; invert a ridge), smooth, flatten, fill, scrape, pinch (invert magnifies), grab, elastic, snakeHook (pull out a tendril along the path), thumb, nudge, mask. The brush moves only the corners there are: mesh_subdivide first for detail. One undo step.", []string{"brush", "points", "radius"}, map[string]any{
+			"brush":      map[string]any{"type": "string", "enum": []string{"draw", "drawSharp", "clay", "clayStrips", "layer", "inflate", "blob", "crease", "smooth", "flatten", "fill", "scrape", "pinch", "grab", "elastic", "snakeHook", "thumb", "nudge", "rotate", "mask"}},
+			"points":     map[string]any{"type": "array", "items": map[string]any{"type": "array", "items": map[string]any{"type": "number"}, "minItems": 3, "maxItems": 3}, "description": "the stroke's path, one or more [x, y, z] in the part's own space (for grab and snakeHook, where the surface is pulled to)"},
+			"radius":     num("the brush's radius, in the part's units"),
+			"strength":   num("0 to 1, default the brush's own (about 0.5)"),
+			"invert":     map[string]any{"type": "boolean", "description": "the brush's other way (draw pushes in, inflate deflates…)"},
+			"falloff":    map[string]any{"type": "string", "enum": []string{"smooth", "sphere", "root", "sharp", "linear", "constant"}},
+			"autoSmooth": num("a smoothing pass after each dab, 0 to 1"),
+			"mirror":     map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"x", "y", "z"}}, "description": "mirror the stroke across these axes of the part's space"},
+		}),
+		meshTool("mesh_sculpt_filter", "Deform a whole mesh at once (what the sculpt mask leaves free): inflate (out along normals by amount units), smooth (toward neighbours, 0 to 1), scale (about its middle by 1 + amount), sharpen, random (along normals by up to amount units), relax (even out the spacing along the surface). One undo step.", []string{"filter", "amount"}, map[string]any{
+			"filter": map[string]any{"type": "string", "enum": []string{"inflate", "smooth", "scale", "sharpen", "random", "relax"}},
+			"amount": num("how much; see the filter"),
+		}),
+		meshTool("mesh_subdivide", "Subdivide a mesh once into the file (one level of Catmull-Clark, as Blender's Multires applied): every face becomes quads, about four times the faces to sculpt; creases, paint, pattern coordinates, shades and morphs follow, and a smooth level it had is one fewer so it looks the same. One undo step.", nil, nil),
 		meshTool("mesh_shade", "Shade a mesh's corners: each gets a number for how much of the sky it sees past the model's own geometry as the current state poses it (rays over the hemisphere about its normal, cosine weighted, nearer hits darker), written as shades, so folds, insides and the foot of a plume sit darker. Run it last, after the geometry is settled: it is not recomputed when the mesh changes. clear takes the shades away.", nil, map[string]any{
 			"strength": num("0 to 1: how dark a wholly hidden corner gets, default 0.6"),
 			"reach":    num("how far a ray looks for something in its way, in units; default about a third of the model's size"),
@@ -420,7 +435,7 @@ func (m *MCP) handle(w http.ResponseWriter, r *http.Request) {
 			"protocolVersion": p.ProtocolVersion,
 			"capabilities":    map[string]any{"tools": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "uranus", "version": "0.3.0"},
-			"instructions":    "Uranus is the editor the user is looking at. get_document, then apply_document; render to see. To reshape a mesh of a 3D model use the mesh_ tools (extrude, inset, loop cut, bridge, fill, merge, crease): each is one undo step and answers with what the mesh is now; render with views to look from several sides at once. Format 1.8: mesh_paint colours faces, mesh_modifiers keeps mirror, solidify and crease in the file (model half a thing, thin), mesh_shade darkens the folds, pipe sweeps a tube along points (on a surface, if asked), build_sidecars compiles a model for fast loading.",
+			"instructions":    "Uranus is the editor the user is looking at. get_document, then apply_document; render to see. To reshape a mesh of a 3D model use the mesh_ tools (extrude, inset, loop cut, bridge, fill, merge, crease): each is one undo step and answers with what the mesh is now; render with views to look from several sides at once. Format 1.8: mesh_paint colours faces, mesh_modifiers keeps mirror, solidify and crease in the file (model half a thing, thin), mesh_shade darkens the folds, mesh_subdivide then mesh_sculpt_stroke / mesh_sculpt_filter shape a mesh like clay, pipe sweeps a tube along points (on a surface, if asked), build_sidecars compiles a model for fast loading.",
 		})
 	case "ping":
 		reply(map[string]any{})

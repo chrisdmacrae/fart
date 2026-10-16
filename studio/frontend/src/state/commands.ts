@@ -58,6 +58,7 @@ export function keyOf(e: KeyboardEvent): string {
 	else if (e.code === "Period" || e.code === "NumpadDecimal") k = ".";
 	else if (e.code.startsWith("Numpad") && /^Numpad\d$/.test(e.code)) k = e.code.slice(6);
 	else if (e.code === "Space") k = "space";
+	else if (e.code === "Tab") k = "tab";
 	else k = k.toLowerCase();
 	parts.push(k);
 	return parts.join("+");
@@ -81,6 +82,7 @@ export const KEYMAP: Record<string, string> = {
 	k: "mesh.loopCut",
 	m: "mesh.merge",
 	b: "mesh.paint",
+	"shift+tab": "mesh.sculpt",
 	u: "tool.pipe",
 	"cmd+j": "chat.toggle",
 	"cmd+s": "file.save",

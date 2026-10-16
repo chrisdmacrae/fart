@@ -176,6 +176,8 @@ export const md = {
 	mannequin: signal<{ path: string; doc: Doc3; tokens: Token[]; compiled?: Compiled | null } | null>(null),
 	/** 1.8: clicks and drags over the selected mesh's faces paint them with `paintTok` */
 	painting: signal(false),
+	/** sculpting: brushes push, pull and smooth the selected mesh like clay (state/sculpting.ts) */
+	sculpting: signal(false),
 	/** the colour faces are painted with: a palette token ("" until one is picked: the last of the palette) */
 	paintTok: signal(""),
 	/** a pipe's path being clicked, in the current part's rest space */
@@ -673,6 +675,7 @@ export async function openModel(rel: string, text: string): Promise<boolean> {
 		md.mannequin.value = null;
 		md.pick.value = "corner";
 		md.painting.value = false;
+		md.sculpting.value = false;
 		md.pipePts.value = [];
 		md.pipePt.value = null;
 		md.pending.value = "none";
@@ -1575,6 +1578,7 @@ md.sel.subscribe((s) => {
 		md.faces.value = [];
 		md.pipePt.value = null;
 		if (!s) md.painting.value = false;
+		if (!s) md.sculpting.value = false;
 	});
 });
 
@@ -1633,12 +1637,10 @@ export function chosenPoints(): number[] {
 
 const cageFrom = (sh: Extract<Shape3, { kind: "mesh" }>): Cage => ({ points: sh.points as V3[], faces: sh.faces, creases: sh.creases, uvs: sh.mapping?.uvs });
 
-/** Lay an operation's result into a document: the mesh, its creases and pattern coordinates, and every morph of it carried through. */
-function layCage(d: Doc3, s: Sel3, steps: OpResult[]) {
+/** The morphs of a mesh: in states and in keys, on the part and on any part drawn like it. */
+export function morphsOf(d: Doc3, s: Sel3): { points: Vec3[] }[] {
 	const part = d.parts?.[s.part];
-	const sh = part?.shapes?.[s.shape];
-	if (!part || !sh || sh.kind !== "mesh") return;
-	// the morphs of this mesh: in states and in keys, on the part and on any part drawn like it
+	if (!part) return [];
 	const names = new Set([part.name, ...(d.parts ?? []).filter((q) => q.like === part.name).map((q) => q.name)]);
 	const lists: { points: Vec3[] }[] = [];
 	const take = (sp: StatePart3) => {
@@ -1646,6 +1648,15 @@ function layCage(d: Doc3, s: Sel3, steps: OpResult[]) {
 	};
 	for (const st of d.states ?? []) st.parts.forEach(take);
 	for (const c of d.clips ?? []) for (const k of c.keys) (k.parts ?? []).forEach(take);
+	return lists;
+}
+
+/** Lay an operation's result into a document: the mesh, its creases and pattern coordinates, and every morph of it carried through. */
+function layCage(d: Doc3, s: Sel3, steps: OpResult[]) {
+	const part = d.parts?.[s.part];
+	const sh = part?.shapes?.[s.shape];
+	if (!part || !sh || sh.kind !== "mesh") return;
+	const lists = morphsOf(d, s);
 	// lists a file may keep beside the cage, one entry per face or per point: they follow the faces and points they belong to
 	const extra = sh as Record<string, unknown>;
 	const whole = (v: unknown, n: number): number[] | null => (Array.isArray(v) && v.length === n && v.every((x) => typeof x === "number") ? (v as number[]) : null);
@@ -1969,7 +1980,7 @@ export function paintToken(): string {
 	const t = md.paintTok.value;
 	return t && md.tokens.value.some((k) => k.name === t) ? t : curTokName();
 }
-function validNow(copy: Doc3): string | null {
+export function validNow(copy: Doc3): string | null {
 	const r = validate(copy, { refTokens: md.unresolved.value.length ? null : md.shared.value.map((t) => t.name), unresolvedRefs: unresolvedOf(md.patterns.value) });
 	return r.errors.length ? r.errors.map((e) => `${e.code} ${e.path}: ${e.message}`).join("\n") : null;
 }
@@ -2033,6 +2044,7 @@ export function setPainting(on: boolean) {
 	batch(() => {
 		md.painting.value = on;
 		if (on) {
+			md.sculpting.value = false;
 			setPick("face");
 			chooseFaces([]);
 			if (!md.paintTok.value) md.paintTok.value = paintToken();

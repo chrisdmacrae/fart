@@ -10,6 +10,7 @@
 #   make test       every check: core, corpus, Odin loader, studio
 #   make check-save the save model, end to end, in a headless browser (needs the app built)
 #   make check-ui   the workspace (navigator, path bar, tools, inspector), the same way
+#   make check-sculpt sculpt mode in the model screen (the brushes, symmetry, the mask, filters, Subdivide, the Ask panel's sculpt tools), the same way
 #   make check-mesh mesh editing in the model screen (extrude, inset, loop cut, rims, symmetry, references, the mesh tools), the same way
 #   make check-layers a part's shapes as rows in the outline (listed, folded, chosen, deleted), 3D and 2D, the same way
 #   make check-keys posing a clip's keys on the canvas (the rig, a key's own pose, keys made between keys), 2D and 3D, the same way
@@ -22,7 +23,7 @@ export PATH := $(shell go env GOPATH)/bin:$(PATH)
 DIR ?= spec/examples
 UNAME := $(shell uname)
 
-.PHONY: help setup dev app run serve test validate skill install check-save check-ui check-mesh check-surface check-layers check-keys release clean
+.PHONY: help setup dev app run serve test validate skill install check-save check-ui check-mesh check-sculpt check-surface check-layers check-keys release clean
 
 help:
 	@sed -n 's/^#   //p' Makefile
@@ -95,6 +96,12 @@ check-mesh: node_modules
 	cd studio && go build -o bin/studio .
 	npx playwright install chromium >/dev/null 2>&1 || true
 	node studio/test/mesh.mjs $(SHOTS)
+
+check-sculpt: node_modules
+	npm run build -w @fastart/studio
+	cd studio && go build -o bin/studio .
+	npx playwright install chromium >/dev/null 2>&1 || true
+	node studio/test/sculpt.mjs $(SHOTS)
 
 # format 1.8 in the model screen, end to end: paint, the modifier stack, shades, pipes, sidecars: SHOTS=dir keeps screenshots
 check-surface: node_modules

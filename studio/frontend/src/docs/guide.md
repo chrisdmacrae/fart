@@ -696,6 +696,51 @@ the same four regions with the model turned under a **view**.
   surface, if asked) and builds sidecars the same way, and it can look
   at another model of the project without opening it.
 
+## Sculpting
+
+Sculpt mode shapes the selected mesh like clay, the way Blender's Sculpt
+Mode does: brushes push, pull, smooth and pinch the surface under the
+pointer instead of moving corners one by one. Select a mesh and press
+`⇧Tab`, or the brush in the path bar; Esc (or `⇧Tab` again) leaves it.
+The inspector's Sculpt section has every setting.
+
+- **A stroke** is a drag over the mesh: one undo step, written into the
+  file as it goes (under Deform, into this state's morph). A drag off
+  the mesh orbits. Hold ⌘ to turn the brush the other way (Draw pushes
+  in, Inflate deflates, Pinch magnifies, Flatten makes contrast, Fill
+  deepens), hold Shift to smooth with any brush. A pen's pressure is the
+  strength.
+- **The brushes.** Add and subtract: Draw (`X`), Draw Sharp, Clay, Clay
+  Strips (`C`), Layer (`L`), Inflate (`I`), Blob, Crease (`⇧C`). Smooth
+  and flatten: Smooth (`S`), Flatten (`⇧T`), Fill, Scrape, Pinch (`P`).
+  Move: Grab (`G`), Elastic Deform, Snake Hook (`K`), Thumb, Nudge,
+  Rotate. Mask (`M`).
+- **Radius and strength.** `F` sizes the brush and `⇧F` sets its
+  strength, the pointer saying how much: a click or Return keeps, Esc
+  puts back. `[` and `]` step the radius. The radius is in screen pixels,
+  so it stays the same as you zoom. Each brush keeps its own strength,
+  falloff (smooth, sphere, root, sharp, linear, constant) and
+  auto-smooth.
+- **The stroke.** Space lays a dab every Spacing of the radius along the
+  way; Dots lays one wherever the pointer is. Stabilize (lazy mouse)
+  makes the brush trail the pointer on a string, for a steadier line.
+- **Symmetry** mirrors each stroke across the part's own X, Y and/or Z,
+  through its origin; Radial repeats it round an axis, for wheels and
+  ornaments. **Front faces** leaves the side that looks away alone;
+  **Connected** (topology auto-masking) keeps a stroke to the piece
+  under it.
+- **The mask** holds the surface still: paint it with the Mask brush (⌘
+  takes it away), then Invert (`⌘I`), Clear (`⌥M`), Grow, Shrink, Smooth
+  or Sharpen it. Masked faces show dark. The mask is the studio's, for
+  the session: it is never written into the file.
+- **Filters** deform the whole mesh at once, or what the mask leaves
+  free: Inflate, Smooth, Scale, Sharpen, Random and Relax.
+- **Detail.** A brush can only move the corners there are. Subdivide
+  adds a level of Catmull-Clark into the file (every face becomes quads;
+  creases, painted faces, pattern coordinates, shades and morphs follow,
+  and a smoothing level the mesh had is one fewer, so it looks the same).
+  Block out at low detail, subdivide, then sculpt the finer forms.
+
 ## Scenes
 
 A `.shart` file (a Scene Hierarchy of Art, dot-s-h-art) composes the

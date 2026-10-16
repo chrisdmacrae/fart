@@ -15,6 +15,8 @@ import { gizmoCancel, modal3, useGizmo, modelGizmo } from "./gizmo3.ts";
 import { viewXf3, type Vec3 } from "@fastart/core";
 import { drawLayers, poseParts, type SolidLayer } from "./gl3.ts";
 import { meshCancel, meshModal } from "./meshtool3.ts";
+import { sculptCancel, sculptAdjust } from "./sculpt3.ts";
+import { sculpt, maskRev } from "../state/sculpting.ts";
 import { md, frameParts, mannequinPoses } from "../state/model.ts";
 import { work, refRev, shading } from "../state/workspace.ts";
 import { canvasColors } from "../state/theme.ts";
@@ -109,6 +111,10 @@ export function ModelCanvas() {
 			void md.faces.value;
 			void md.mannequin.value;
 			void md.painting.value;
+			void md.sculpting.value;
+			void sculpt.value;
+			void maskRev.value;
+			void sculptAdjust.value;
 			void md.paintTok.value;
 			void md.pipePts.value;
 			void md.pipePt.value;
@@ -133,7 +139,7 @@ export function ModelCanvas() {
 			const r = canvas.getBoundingClientRect();
 			return [e.clientX - r.left, e.clientY - r.top];
 		};
-		const mods = (e: PointerEvent) => ({ shift: e.shiftKey, alt: e.altKey, cmd: e.metaKey || e.ctrlKey });
+		const mods = (e: PointerEvent) => ({ shift: e.shiftKey, alt: e.altKey, cmd: e.metaKey || e.ctrlKey, pressure: e.pointerType === "pen" ? e.pressure : undefined });
 		const menu = (e: PointerEvent) => {
 			e.preventDefault();
 			const some = !!md.sel.value;
@@ -152,7 +158,7 @@ export function ModelCanvas() {
 			canvas.setPointerCapture(e.pointerId);
 			const s = local(e);
 			// a right click puts a transform under way back, before it is a menu
-			if (e.button === 2) return meshCancel() || gizmoCancel() ? (e.preventDefault(), request()) : menu(e);
+			if (e.button === 2) return meshCancel() || sculptCancel() || gizmoCancel() ? (e.preventDefault(), request()) : menu(e);
 			// the middle button orbits, with ⇧ it pans; Space-drag pans as on the 2D canvas
 			if ((e.button === 1 && e.shiftKey) || (e.button === 0 && md.space)) {
 				panning = true;

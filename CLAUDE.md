@@ -128,3 +128,14 @@ follow the spec, never the other way round.
   studio's and never the file's (symmetry, reference images, the
   mannequin, clay shading), in localStorage per document. `make
   check-mesh` (`studio/test/mesh.mjs`) drives all of it headlessly.
+- Sculpt mode in the model screen (`md.sculpting`, ⇧Tab): `state/sculpt.ts`
+  is the brush geometry (pure, no imports: Draw, Clay Strips, Layer,
+  Inflate, Crease, Smooth, Flatten, Grab, Snake Hook, Mask…, falloffs,
+  symmetry as matrices, auto-masking, filters), tested by `npm test -w
+  @fastart/studio`; `state/sculpting.ts` the settings (this device's), the
+  mask (the session's, never the file's), a stroke's writes (one undo
+  step), filters and Subdivide (Catmull-Clark into the file);
+  `canvas/sculpt3.ts` the pointer, F/⇧F and the brush letters;
+  `ui/Sculpt.tsx` the inspector. Claude gets `mesh_sculpt_stroke`,
+  `mesh_sculpt_filter`, `mesh_subdivide`. `make check-sculpt`
+  (`studio/test/sculpt.mjs`) drives it headlessly.

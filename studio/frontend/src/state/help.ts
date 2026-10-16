@@ -51,6 +51,7 @@ export const CONTEXTS: Record<string, string[]> = {
 	palette: ["colours", "glow"],
 	"3d.document": ["3d-models", "the-inspector", "generated-assets", "colours", "textures", "saving-is-a-checkpoint"],
 	"3d.shape": ["3d-models", "shade", "textures", "colours"],
+	"3d.sculpt": ["sculpting", "3d-models"],
 	"3d.part": ["3d-models", "rigs", "states", "mirror-and-reuse"],
 	"3d.clip": ["clips", "events-and-curves", "3d-models"],
 	"3d.collision": ["the-collision-lens", "3d-models"],
@@ -75,6 +76,7 @@ const NAMES: Record<string, string> = {
 	palette: "A palette",
 	"3d.document": "A 3D model",
 	"3d.shape": "A solid",
+	"3d.sculpt": "Sculpting",
 	"3d.part": "A part of a model",
 	"3d.clip": "A clip",
 	"3d.collision": "Collision solids",
@@ -95,6 +97,7 @@ export function contextNow(): { key: string; name: string } {
 	} else if (s === "model") {
 		if (md.collide.value) key = "3d.collision";
 		else if (md.curClip.value >= 0) key = "3d.clip";
+		else if (md.sculpting.value && md.sel.value) key = "3d.sculpt";
 		else if (md.sel.value) key = "3d.shape";
 		else if (md.partPicked.value) key = "3d.part";
 		else key = "3d.document";

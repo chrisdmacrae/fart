@@ -10,6 +10,7 @@
   --canvas-grid: #e3e1dd;
   --canvas-grid-major: #d1cec9;
   --canvas-origin: #a39e97;
+  --canvas-mask: #1f1d1b;
   --separator: #d6d3ce;
   --control-edge: #7c7770;
   --text-primary: #1f1d1a;
@@ -44,6 +45,7 @@
   --canvas-grid: #262422;
   --canvas-grid-major: #34322f;
   --canvas-origin: #5c5853;
+  --canvas-mask: #000000;
   --separator: #3a3835;
   --control-edge: #8f8a83;
   --text-primary: #ece9e4;

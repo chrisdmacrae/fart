@@ -11,6 +11,7 @@ import { HelpSheet, HelpSearchSheet, KeysSheet } from "./ui/Help.tsx";
 import { helpSheet, helpSearch, keysSheet } from "./state/help.ts";
 import { gizmoKey, gizmoActive, gizmoNote } from "./canvas/gizmo3.ts";
 import { meshKey, meshActive } from "./canvas/meshtool3.ts";
+import { sculptKey, sculptActive, sculptAdjust } from "./canvas/sculpt3.ts";
 import { sx } from "./canvas/scene3.ts";
 import { ix3 as ix3model } from "./canvas/model3.ts";
 import { Welcome } from "./screens/Welcome.tsx";
@@ -51,6 +52,8 @@ function onKey(e: KeyboardEvent) {
 	if (screen === "setup" && e.key === "Escape") return leaveSetup();
 	// a mesh operation following the pointer takes its keys first: the digits, Return, Esc
 	if (screen === "model" && meshKey(e)) return e.preventDefault();
+	// sculpting takes the brushes' letters, F and the mask's keys
+	if (screen === "model" && sculptKey(e, ix3model.cursor)) return e.preventDefault();
 	// a transform in the model view takes its keys first: G T S, then X Y Z and the digits
 	if ((screen === "model" || screen === "scene") && gizmoKey(e, screen === "model" ? ix3model.cursor : sx.cursor)) return e.preventDefault();
 	const k = keyOf(e);
@@ -80,6 +83,11 @@ function onKey(e: KeyboardEvent) {
  */
 function onKeyFirst(e: KeyboardEvent) {
 	if (meshActive() && !typing(e) && meshKey(e)) {
+		e.preventDefault();
+		e.stopPropagation();
+		return;
+	}
+	if ((sculptActive() || sculptAdjust.value) && !typing(e) && sculptKey(e, ix3model.cursor)) {
 		e.preventDefault();
 		e.stopPropagation();
 		return;

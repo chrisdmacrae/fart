@@ -76,6 +76,8 @@ export interface CanvasColors {
 	text2: string;
 	text3: string;
 	marquee: string;
+	/** what a sculpting mask holds, laid dark over the faces */
+	mask: string;
 	/** the world's axes, for gizmos: always drawn with their letter */
 	axisX: string;
 	axisY: string;
@@ -102,6 +104,7 @@ export function canvasColors(): CanvasColors {
 		text2: v("--text-secondary"),
 		text3: v("--canvas-origin"),
 		marquee: v("--accent-dim"),
+		mask: v("--canvas-mask"),
 		axisX: v("--axis-x"),
 		axisY: v("--axis-y"),
 		axisZ: v("--axis-z"),

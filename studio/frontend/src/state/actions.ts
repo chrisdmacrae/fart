@@ -21,6 +21,7 @@ import { shell } from "../shell/shell.ts";
 import { checkForUpdates } from "./update.ts";
 import { docBounds } from "@fastart/core";
 import * as M from "./model.ts";
+import * as Sc from "./sculpting.ts";
 import { escape as escape3, polyEnter as polyEnter3, nudgeView, frameBounds, chosenBounds, orbitDrag, ix3 } from "../canvas/model3.ts";
 import { meshOp } from "../canvas/meshtool3.ts";
 import { shading, setShading, mirrorOn, setMirror } from "./workspace.ts";
@@ -96,7 +97,10 @@ function tool(t: Tool | "pipe") {
 		M.md.tool.value = t;
 		M.md.polyPts.value = [];
 		M.md.pipePts.value = [];
-		if (t !== "select") M.md.painting.value = false;
+		if (t !== "select") {
+			M.md.painting.value = false;
+			M.md.sculpting.value = false;
+		}
 		// a pipe drawn over a mesh that is mirrored (by a modifier, or by the working symmetry) gets its twin
 		if (t === "pipe") {
 			const s = M.md.sel.value;
@@ -170,6 +174,11 @@ export function initCommands() {
 		{ id: "mesh.flip", title: "Flip faces", group: "Mesh", when: meshSel, run: () => void M.meshAct("flip") },
 		{ id: "mesh.wind", title: "Wind outward", group: "Mesh", when: meshSel, run: () => void M.meshAct("wind") },
 		{ id: "mesh.paint", title: "Paint faces by brush", group: "Mesh", when: meshSel, run: () => M.setPainting(!M.md.painting.value) },
+		{ id: "mesh.sculpt", title: "Sculpt mode", group: "Mesh", when: meshSel, run: () => void Sc.setSculpting(!M.md.sculpting.value) },
+		{ id: "sculpt.subdivide", title: "Sculpt: subdivide the mesh once", group: "Mesh", when: meshSel, run: () => noted(Sc.subdivideSel()) },
+		{ id: "sculpt.filter", title: "Sculpt: run the mesh filter", group: "Mesh", when: meshSel, run: () => noted(Sc.runFilter()) },
+		{ id: "sculpt.maskInvert", title: "Sculpt: invert the mask", group: "Mesh", when: meshSel, run: () => Sc.maskAct("invert") },
+		{ id: "sculpt.maskClear", title: "Sculpt: clear the mask", group: "Mesh", when: meshSel, run: () => Sc.maskAct("clear") },
 		{ id: "mesh.paintChosen", title: "Paint the chosen faces", group: "Mesh", when: () => meshSel() && M.md.faces.value.length > 0, run: () => void M.paintChosen() },
 		{ id: "mesh.shade", title: "Shade corners", group: "Mesh", when: meshSel, run: () => noted(M.shadeAct("shade")) },
 		{ id: "mesh.clearShades", title: "Clear shades", group: "Mesh", when: meshSel, run: () => noted(M.shadeAct("clear")) },
