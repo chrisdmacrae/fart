@@ -38,6 +38,8 @@ import {
 	curState,
 	curClip,
 	poseOfCur,
+	keyHere,
+	keyToState,
 	selShape,
 	freshName,
 	addPart,
@@ -136,6 +138,21 @@ import {
 import type { Mod, Part3, Shape3, Vec3 } from "@fastart/core";
 
 const DEG = 180 / Math.PI;
+
+/** What the Pose section poses, for its hint: a state, a clip's key, or a key to be. */
+function poseWhere(): string {
+	const clip = curClip();
+	if (!clip) return "";
+	const key = clip.keys[keyHere()];
+	if (!key) return ` · ${clip.name} at ${md.clipTime.value.toFixed(2)}s: a change adds a key here`;
+	return ` · the key at ${key.t}s of ${clip.name}${key.state !== undefined ? `, now ${key.state}: a change gives the key its own pose` : ""}`;
+}
+function poseTail(): string {
+	const clip = curClip();
+	if (!clip) return curState()?.name ?? "state";
+	const key = clip.keys[keyHere()];
+	return key ? `${key.t}s` : "new key";
+}
 const TOOLS: ToolSpec<Tool3>[] = [
 	{ tool: "select", label: "Select", key: "V", icon: "mouse-pointer-2" },
 	{ tool: "rect", label: "Box", key: "R", icon: "square", makes: "drag a rectangle in the view plane: a box, as deep as the depth field" },
@@ -157,7 +174,11 @@ export function modelStatus(): string {
 	const st = curState();
 	const clip = curClip();
 	const vn = md.viewName.value || "free";
-	if (clip) return `Previewing ${clip.name} · ${vn} · Space plays · keys name states, pose those to change a key`;
+	if (clip) {
+		const key = clip.keys[keyHere()];
+		const at = key ? `key at ${key.t}s` : "between keys: a change adds a key";
+		return `${clip.name} · ${at} · ${vn} · drag a part to turn it (⌥ moves) · drag a joint to move it · the handles move and turn the picked part · Space plays`;
+	}
 	if (md.pending.value === "pivot") return "Click the canvas to place the pivot";
 	if (tool === "poly") return "Click a profile in the view plane · click the first point or press Enter to close it into a prism · Esc drops it";
 	if (tool === "pipe") {
@@ -193,9 +214,9 @@ export function ModelTools() {
 				tools={TOOLS}
 				current={md.tool.value}
 				disabled={(t) => !!clip && t !== "select"}
-				why="A clip is a preview; pick a state to edit"
+				why="A clip poses its keys; pick a state to model"
 				modes={[
-					{ id: "deform", command: "edit.deform", label: "Deform: corner drags reshape the part in this state only", icon: "spline", key: "D", on: md.deform.value, disabled: !!clip, why: "A clip is a preview; pick a state to deform" },
+					{ id: "deform", command: "edit.deform", label: "Deform: corner drags reshape the part in this state only", icon: "spline", key: "D", on: md.deform.value, disabled: !!clip, why: "A clip poses parts, not meshes; pick a state to deform" },
 					{ id: "outline", command: "model.outline", label: "Silhouettes, the way Project draws them", icon: "square-dashed", on: md.outline.value },
 					{ id: "collision", command: "view.collision", label: "Collision solids", icon: "shield", key: "C", on: md.collide.value },
 					gridMode(),
@@ -783,7 +804,10 @@ export function ModelTimeline() {
 				<>
 					<span class="model-timeline-sep" />
 					<N value={key.t} min={0} step={0.05} suffix="s" width={72} stepper={false} label="Key time" title="When this key lands" onChange={(v) => setKeyTime(ki, v)} />
-					<Select value={key.state ?? ""} options={states().map((s) => s.name)} width={128} title="The state this key names" onChange={(v) => setKeyState(ki, v)} />
+					<Select value={key.state ?? ""} options={[...(key.state === undefined ? [{ value: "", label: "Own pose" }] : []), ...states().map((s) => ({ value: s.name, label: s.name }))]} width={128} title="The state this key names; posing the rig on this key gives it its own pose" onChange={(v) => v && setKeyState(ki, v)} />
+					{key.state === undefined && (
+						<Button variant="toolbar" class="ur-btn-sm" icon="circle-dot" title="Save this key's pose as a state; the key then names it" onClick={() => keyToState(ki, freshName(`${clip.name}_${key.t}s`, states().map((s) => s.name)))} />
+					)}
 					<Select value={key.ease ?? "linear"} options={EASES} width={92} title="How this key eases into the next" onChange={(v) => setKeyEase(ki, v)} />
 					<Button variant="toolbar" class="ur-btn-sm" icon="trash-2" title="Delete key" disabled={clip.keys.length <= 1} onClick={() => deleteKey(ki)} />
 				</>
@@ -1382,9 +1406,9 @@ export function Inspector3() {
 					</div>
 				</InspectorSection>
 			)}
-			{p && picked && sp && !preview && (
-				<InspectorSection title="Pose" hint="where the part's pivot lands, its turn about x, y and z (degrees), its size" tail={st?.name ?? "state"}>
-					{morphs > 0 && (
+			{p && picked && sp && (
+				<InspectorSection title="Pose" hint={`where the part's pivot lands, its turn about x, y and z (degrees), its size${poseWhere()}`} tail={poseTail()}>
+					{morphs > 0 && !preview && (
 						<Property label="Morph" title="a morph: this state reshapes the part's meshes; clips lerp the corners between states">
 							<span class="ur-prop-val model-grow">
 								{morphs} mesh{morphs === 1 ? "" : "es"} reshaped
@@ -1394,7 +1418,7 @@ export function Inspector3() {
 							</Button>
 						</Property>
 					)}
-					{md.deform.value && morphs === 0 && <div class="insp-hint flush">Deform is on · drag a corner to reshape the part in this state</div>}
+					{md.deform.value && morphs === 0 && !preview && <div class="insp-hint flush">Deform is on · drag a corner to reshape the part in this state</div>}
 					<Trio
 						label="Position"
 						value={sp.offset ?? p.pivot ?? [0, 0, 0]}
@@ -1423,7 +1447,7 @@ export function Inspector3() {
 					</Property>
 					<div class="insp-actions">
 						<Button onClick={() => resetPose(sp)}>Reset</Button>
-						<Button onClick={() => toggleMembership(md.curState.value, p.name)}>Leave out of this state</Button>
+						{!preview && <Button onClick={() => toggleMembership(md.curState.value, p.name)}>Leave out of this state</Button>}
 					</div>
 				</InspectorSection>
 			)}

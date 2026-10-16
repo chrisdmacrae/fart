@@ -12,6 +12,7 @@
 #   make check-ui   the workspace (navigator, path bar, tools, inspector), the same way
 #   make check-mesh mesh editing in the model screen (extrude, inset, loop cut, rims, symmetry, references, the mesh tools), the same way
 #   make check-layers a part's shapes as rows in the outline (listed, folded, chosen, deleted), 3D and 2D, the same way
+#   make check-keys posing a clip's keys on the canvas (the rig, a key's own pose, keys made between keys), 2D and 3D, the same way
 #   make check-surface format 1.8 in the model screen (paint, modifiers, shades, pipes, compiled sidecars and their tools), the same way
 #   make validate DIR=path/to/art   fart validate
 #   make skill      install the fastart skill for Claude Code (~/.claude/skills)
@@ -21,7 +22,7 @@ export PATH := $(shell go env GOPATH)/bin:$(PATH)
 DIR ?= spec/examples
 UNAME := $(shell uname)
 
-.PHONY: help setup dev app run serve test validate skill install check-save check-ui check-mesh check-surface check-layers release clean
+.PHONY: help setup dev app run serve test validate skill install check-save check-ui check-mesh check-surface check-layers check-keys release clean
 
 help:
 	@sed -n 's/^#   //p' Makefile
@@ -108,6 +109,13 @@ check-layers: node_modules
 	cd studio && go build -o bin/studio .
 	npx playwright install chromium >/dev/null 2>&1 || true
 	node studio/test/layers.mjs $(SHOTS)
+
+# posing clip keys on the canvas, 2D and 3D: SHOTS=dir keeps screenshots
+check-keys: node_modules
+	npm run build -w @fastart/studio
+	cd studio && go build -o bin/studio .
+	npx playwright install chromium >/dev/null 2>&1 || true
+	node studio/test/keys.mjs $(SHOTS)
 
 validate: node_modules
 	node packages/core/src/cli.ts validate $(DIR)

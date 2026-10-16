@@ -9,7 +9,7 @@ import { BottomBar, StatesList, ClipsList } from "../ui/BottomBar.tsx";
 import { Canvas } from "../canvas/Canvas.tsx";
 import { ToolBar, Transport, gridMode, keyReadout, type ToolSpec } from "../ui/Tools.tsx";
 import { showIssues } from "../ui/ProjectBar.tsx";
-import { ed, curState, curClip, seek, type Tool } from "../state/editor.ts";
+import { ed, curState, curClip, keyHere, seek, type Tool } from "../state/editor.ts";
 import { run } from "../state/commands.ts";
 import { Checkbox, InspectorSection, Property } from "../ui/ur.tsx";
 
@@ -39,7 +39,11 @@ export function editorStatus(): string {
 	const st = curState();
 	const clip = curClip();
 	if (ed.collide.value) return "Collision lens: shapes a game may treat as solid · C flips back";
-	if (clip) return `Previewing ${clip.name} · Space plays · keys name states, pose those to change a key`;
+	if (clip) {
+		const key = clip.keys[keyHere()];
+		const at = key ? `key at ${key.t}s` : "between keys: a change adds a key";
+		return `${clip.name} · ${at} · drag a part to turn it (⌥ moves, ⇧ snaps) · drag a joint to move it · Space plays`;
+	}
 	if (ed.pending.value === "pivot") return "Click the canvas to place the pivot";
 	if (ed.pending.value === "anchor") return "Click the canvas to place the anchor";
 	if (ed.tool.value === "poly") return "Pen: click for a corner, drag for a curve · click the first point or press Enter to close · Esc drops it";
@@ -61,9 +65,9 @@ export function EditorTools() {
 				tools={EDITOR_TOOLS}
 				current={ed.tool.value}
 				disabled={(t) => posing && t !== "select"}
-				why="A clip is a preview; pick a state to edit"
+				why="A clip poses its keys; pick a state to draw"
 				modes={[
-					{ id: "deform", command: "edit.deform", label: "Deform: drags reshape the part in this state only", icon: "spline", key: "D", on: ed.deform.value, disabled: posing || collide, why: posing ? "A clip is a preview; pick a state to deform" : "Leave the collision lens to deform" },
+					{ id: "deform", command: "edit.deform", label: "Deform: drags reshape the part in this state only", icon: "spline", key: "D", on: ed.deform.value, disabled: posing || collide, why: posing ? "A clip poses parts, not shapes; pick a state to deform" : "Leave the collision lens to deform" },
 					{ id: "collision", command: "view.collision", label: "Collision lens", icon: "shield", key: "C", on: collide },
 					gridMode(),
 				]}

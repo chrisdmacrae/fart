@@ -187,6 +187,13 @@ export function pick(wm: Vec2): Sel3 | null {
 	return best?.sel ?? null;
 }
 
+/** The joint (a drawn part's pivot) under a world point, the current part's first; -1 for none. */
+export function jointAt(wm: Vec2): number {
+	const fps = [...frameParts()].sort((a, b) => (a.index === md.curPart.value ? -1 : b.index === md.curPart.value ? 1 : 0));
+	for (const fp of fps) if (dist(wm, fp.pivot) < px(8)) return fp.index;
+	return -1;
+}
+
 /** The current part's pivot on the canvas, and its lever (the in-plane turn). */
 export function pivotLever(): { at: Vec2; lever: Vec2; angle: number } | null {
 	const fp = framePartOf(md.curPart.value);
@@ -523,9 +530,9 @@ export function onDown(wm: Vec2, mods: Mods) {
 		ix3.drawA = p;
 		return;
 	}
-	// the pivot and its lever, for the current part
+	// the pivot and its lever, for the current part (in a clip, the key's pose: see editPose)
 	const pl = pivotLever();
-	if (pl && !preview && poseOfCur()) {
+	if (pl && poseOfCur()) {
 		if (dist(wm, pl.lever) < px(8)) {
 			ix3.poseRot = true;
 			ix3.poseAng0 = Math.atan2(wm[1] - pl.at[1], wm[0] - pl.at[0]);
@@ -556,6 +563,35 @@ export function onDown(wm: Vec2, mods: Mods) {
 	}
 	// a corner, an edge or a face of the selected mesh, by what clicks choose
 	if (!preview && elementDown(wm, mods, true)) return;
+	// in a clip the rig poses the key under the playhead: a joint drags to move, a part turns about its pivot (a root, or ⌥, moves)
+	if (preview) {
+		md.playing.value = false;
+		const j = jointAt(wm);
+		const hit = j < 0 ? pick(wm) : null;
+		const i = j >= 0 ? j : (hit?.part ?? -1);
+		if (i < 0) {
+			md.sel.value = null;
+			md.partPicked.value = false;
+			return;
+		}
+		if (hit) selectShapes([hit]);
+		else {
+			md.sel.value = null;
+			md.also.value = [];
+		}
+		md.curPart.value = i;
+		md.partPicked.value = true;
+		if (!poseOfCur()) return;
+		const pivot = pivotLever();
+		if (hit && parts()[i].parent && !mods.alt && pivot) {
+			ix3.poseRot = true;
+			ix3.poseAng0 = Math.atan2(wm[1] - pivot.at[1], wm[0] - pivot.at[0]);
+		} else {
+			ix3.poseDrag = true;
+			ix3.dragLast = wm;
+		}
+		return;
+	}
 	const hit = pick(wm);
 	if (hit) {
 		const all = selected();
@@ -674,6 +710,7 @@ export function onMove(wm: Vec2, mods: Mods) {
 		const p = curPart();
 		if (!sp || !p) return;
 		const d: Vec2 = [wm[0] - ix3.dragLast[0], wm[1] - ix3.dragLast[1]];
+		if (d[0] === 0 && d[1] === 0) return; // a pointer that has not moved changes nothing
 		ix3.dragLast = wm;
 		// the offset lives in the parent's rest frame: undo the parent's view map on the displacement
 		const parentIdx = p.parent ? parts().findIndex((q) => q.name === p.parent) : -1;
@@ -957,6 +994,21 @@ export function render3(ctx: CanvasRenderingContext2D, W: number, H: number, dpr
 		ctx.stroke();
 	}
 	ctx.setLineDash([]);
+	if (preview) {
+		// posing a key: every joint is a grip
+		ctx.strokeStyle = C.accentSoft;
+		ctx.fillStyle = C.handleFill;
+		const seen = new Set<number>();
+		for (const fp of fps) {
+			if (seen.has(fp.index)) continue;
+			seen.add(fp.index);
+			const s = toS(fp.pivot);
+			ctx.beginPath();
+			ctx.arc(s[0], s[1], 4, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.stroke();
+		}
+	}
 
 	world();
 	for (const sh of hovShapes) if (!selShapes.includes(sh)) outlineShape(ctx, sh, HOVER, LW, zoom);
@@ -1210,14 +1262,14 @@ export function render3(ctx: CanvasRenderingContext2D, W: number, H: number, dpr
 	}
 
 	// the axis handles of what is chosen: arrows to move, rings to turn
-	if (!preview && md.tool.value !== "pipe" && !md.painting.value) {
+	if (md.tool.value !== "pipe" && !md.painting.value) {
 		screen();
 		drawGizmo(ctx, toS);
 	}
 
 	// the current part's pivot and lever
 	const pl = pivotLever();
-	if (pl && !preview) {
+	if (pl && (!preview || md.partPicked.value)) {
 		screen();
 		const a = toS(pl.at);
 		const l = toS(pl.lever);

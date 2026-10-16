@@ -15,8 +15,11 @@ follow the spec, never the other way round.
 - `studio/`: Uranus, the app ("the reference editor for the Fast Art Format"): Wails 3 (Go shell, thin: dialogs, rooted file IO, recents,
   serve) + Preact frontend. `studio/DESIGN.md` governs the UI language;
   `frontend/src/state/actions.ts` is the one command registry. Every
-  canvas view is a state (there is no separate draw mode); a clip is a
-  preview; a palette file opens as swatches.
+  canvas view is a state (there is no separate draw mode); a clip poses
+  the key under the playhead (`editPose` in `state/editor.ts` and
+  `state/model.ts`: a key naming a state takes its own copy, a change
+  between keys makes one; `make check-keys`); a palette file opens as
+  swatches.
 - Verify studio changes headlessly: build (`npx tsc && npx vite build`
   in `studio/frontend`, `go build -o bin/studio .` in `studio`), run
   `./studio/bin/studio --serve <dir>`, drive it with Playwright, read
