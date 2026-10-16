@@ -48,7 +48,7 @@ async function served(example, tour) {
 		await page.waitForTimeout(1500);
 		const shot = (n) => (shots ? page.screenshot({ path: path.join(shots, n + ".png") }) : Promise.resolve());
 		const hdrs = async () => (await page.locator(".inspector .ur-insp-title").allTextContents()).map((t) => t.trim().split("\n")[0]);
-		await tour(page, shot, hdrs);
+		await tour(page, shot, hdrs, P);
 	} finally {
 		await browser.close();
 		server.kill();
@@ -303,6 +303,30 @@ await served(
 	await shot("20-sweep");
 	},
 );
+
+// the folder is watched: what something else does on disk shows in the navigator without a click
+await served("space", async (page, _shot, _hdrs, P) => {
+	const files = () => page.evaluate(() => fastart.project.files.value);
+	const before = await files();
+	check("the project lists its files", before.length > 0, `${before.length} files`);
+	const some = before.find((f) => f.endsWith(".fart"));
+	const made = path.join(path.dirname(some), "made-outside.fart");
+	fs.copyFileSync(path.join(P, some), path.join(P, made));
+	await page.waitForTimeout(3200);
+	check("a file made on disk appears", (await files()).includes(made));
+	// (the browser shows the folder it is in: go to the file's own)
+	await page.evaluate((d) => fastart.goFolder(d), path.dirname(made) === "." ? "" : path.dirname(made));
+	await page.waitForTimeout(400);
+	check("and shows on screen", (await page.getByText("made-outside").count()) > 0);
+	fs.renameSync(path.join(P, made), path.join(P, path.dirname(some), "moved-outside.fart"));
+	await page.waitForTimeout(3200);
+	const after = await files();
+	check("a file renamed on disk follows", after.some((f) => f.endsWith("moved-outside.fart")) && !after.includes(made));
+	fs.rmSync(path.join(P, path.dirname(some), "moved-outside.fart"));
+	await page.waitForTimeout(3200);
+	check("a file removed on disk goes", (await files()).length === before.length);
+	check("nothing was left busy", await page.evaluate(() => fastart.project.busy.value === false));
+});
 
 console.log(fails ? `${fails} FAILED` : "all passed");
 process.exit(fails ? 1 : 0);

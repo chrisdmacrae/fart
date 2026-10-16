@@ -671,7 +671,7 @@ further tokens and say which face wears which:
   then the cap at the profile's start and the cap at its end where
   there are any; an extrude's cap at `from`, its cap at `to`, then one
   side for each edge of the profile in order; a pipe's as **Pipes**
-  says. A profile or path with handles is flattened first, and the
+  says, a rail's as **Rails**. A profile or path with handles is flattened first, and the
   count then depends on the flattening: paint a sweep whose outline is
   corners, or paint its `bake`.
 - Error `paint`: a `paint` whose count differs from the faces, an index
@@ -1022,6 +1022,130 @@ goes with the arm:
 - Projection (`PROJECT.md`) places a skinned mesh's points by the same
   sum before it flattens them.
 
+## Relief (1.10)
+
+A drawing is flat fills with hard edges, which is the wrong thing for a
+fold, a dent or a worn corner. Two optional fields let a texture's maps
+say those, still with no bitmap in the file:
+
+```json
+"textures": [
+  {"name": "paper", "cell": [64, 64], "relief": 1.2, "maps": {
+    "color":  {"ref": "textures/paper.fart", "mode": "mask", "soften": 0.9},
+    "height": {"ref": "textures/folds.fart", "soften": 0.6},
+    "rough":  {"ref": "textures/paper.fart", "palette": "palettes/rough.fart", "soften": 0.9}
+  }}
+]
+```
+
+- `soften` on a map is a blur: the map as drawn, convolved with a
+  Gaussian whose standard deviation is `soften` **pattern units**,
+  wrapping at the cell's edges so a tile stays a tile. Colour is blurred
+  premultiplied by alpha. A hard-edged line in a height map becomes a
+  ridge with a slope; a patch in a colour map becomes a stain. Absent or
+  0, the map is as drawn. The reference is a separable kernel cut at
+  three deviations; any filter that close conforms.
+- `relief` on a texture gives its `height` map a size: the map's value 1
+  stands `relief` pattern units proud of its value 0 (negative: sunk).
+  A renderer that lights by it treats the surface, in each face's
+  pattern frame (u right, v down, the face's normal out), as the height
+  field `z = relief × height(u, v)` and lights with that field's normal,
+  `(−relief ∂h/∂u, −relief ∂h/∂v, 1)` normalised, as if the pattern lay
+  on the face at scale 1. It is light only: the silhouette, collision,
+  `fart hull` and projection (`PROJECT.md`) see the face flat. Absent or
+  0, or with no `height` map, there is no relief.
+- Relief is the shape's, as its texture is: `paint` and `shades` (1.8)
+  colour what it lights. Where a modifier turns a face's `uvs` round
+  (a `mirror`'s copy, a `solidify`'s inner wall) the pattern frame turns
+  with them, so a ridge stays a ridge seen from either side.
+- **Maps the reference tools read**, all scalars as 1.5 defines them:
+  `height` (above), `rough` (1 matte, 0 mirror), `metal` (1 metal),
+  `ao` (1 open, 0 occluded). They stay the engine's to interpret; these
+  are only the names `fart bake --textures` and `fart gltf` look for.
+  The bake writes `<texture>.normal.png` when there is relief (tangent
+  space, `n × 0.5 + 0.5`, red along +u, green **up the image**, the glTF
+  convention) and `<texture>.orm.png` when any of the other three exist
+  (occlusion in red, roughness in green, metallic in blue; an absent
+  one is 1, 1 and 0). `fart gltf` puts both in the texture's material,
+  with tangents on what wears it. The compiled sidecar (1.8) is as it
+  was: it embeds no image, and a reader lighting by relief has the
+  frame from a triangle's positions and `TEXCOORD_0`.
+- **An atlas is a texture whose cell is the whole sheet**: explicit
+  `uvs` that stay inside `[0, 0]`–`cell` never see it repeat. `fart
+  unwrap` writes such uvs for the meshes that wear a texture: a cage's
+  faces sorted by the axis their normal leans on (as box mapping sorts
+  them), neighbours that agree laid flat as one island, seen from
+  outside, and the islands packed into the cell. They are the cage's,
+  and ride through mods and subdivision as any explicit uvs do.
+- Errors: `soften` below 0 or not a number, `relief` not a number, are
+  `schema`. A 1.9 reader draws a softened map hard and lights flat.
+
+## Rails (1.11)
+
+The fourth sweep carries a profile along a path as a pipe does, but
+standing: a cliff's face with its brow, a kerb, a skirting board, a
+gutter, the bank of a stream. Where a pipe's section turns with its
+path, a rail's keeps one way up wherever the path goes.
+
+```json
+{"kind": "sweep", "color": "rock", "op": "rail", "axis": "y", "round": 1, "segments": 4,
+ "path": {"points": [[-4,0,0], [0,0,0], [0,0,4]]},
+ "profile": {"points": [[0,0], [0.3,0.2], [0.3,3]]}}
+```
+
+- `path` is a pipe's: a path body with three coordinates, flattened as
+  a pipe's is, a point that sits on the one before it dropped. `closed`
+  (on the shape) joins its last point to its first.
+- `profile` is a path body in two coordinates, `[out, along]`: `along`
+  runs along `axis` (`y` when absent: the format's down, so a profile
+  is drawn as its cross-section looks), `out` to the path's side. It is
+  open unless it says `"closed": true`.
+- **Round.** When the path has no handles, each of its corners (every
+  point of a closed path; every point but the ends of an open one) is
+  rounded to the radius `round` (0 when absent: sharp). With unit
+  directions a and b from the corner P to its neighbours and φ the
+  angle between them, the corner is cut back by d = `round` / tan(φ/2),
+  or by half the shorter of its two segments where that is less; the
+  arc runs from P + d a to P + d b about the centre the two share, in
+  the plane of the two segments, in ⌈(π − φ) / (π/2) × `segments`⌉
+  equal steps (`segments` is 4 when absent). A corner that does not
+  turn, or that doubles straight back, keeps its point. A path with
+  handles is as round as it is drawn, and `round` does nothing to it.
+- **The frame.** Each segment of the path so made has a way H: its
+  direction with what lies along the axis A taken out, made unit. A
+  segment that runs straight along the axis takes the H of the segment
+  before it (the one after, at the start); a path with no H at all
+  makes no mesh. A segment's side is O = A × H. At an end of an open
+  path the ring stands on its one segment's O; at every other point on
+  the mitre M, the two segments' O summed and made unit (the next
+  segment's own O where they cancel), reaching 1 / max(M · O, 0.25)
+  times as far, so a face keeps its distance from the path on both
+  sides of the corner. A profile point (x, y) stands at
+  `P + reach x M + y A`. The path may climb: the profile stays upright.
+- **The mesh.** One ring of points per point of the path, in path
+  order, each in profile order. Faces: for each ring and the next (and
+  on a closed path the last and the first), for each edge k of the
+  profile, the quad `[aₖ, aₖ₊₁, bₖ₊₁, bₖ]`. An open profile makes a
+  sheet, and each face looks to the profile's left as it is drawn (out
+  to the right, the axis downward): a stretch drawn going down faces
+  out, one drawn going out faces up. A closed profile makes a moulding:
+  it is taken in reverse when its signed area (Σ xₖ yₖ₊₁ − xₖ₊₁ yₖ) is
+  negative, so it faces out, and on an open path with `caps` (true when
+  absent) the first ring reversed and the last ring as it is close its
+  ends.
+- `normals`, `angle`, `smooth`, `creases`, `colors` and `paint` (over
+  the generated faces, in the order above: a profile of two edges along
+  a path of five segments has ten, edge by edge within each segment),
+  `texture`, `mapping`, `mods` and `bake` apply as to the other sweeps.
+  A rail has no `points`, does not morph, and never occurs in
+  `collision`.
+- Error `rail`: a closed rail with fewer than three path points. A
+  closed profile with fewer than three points, or handles with the
+  wrong count, are `curve`; a rail without a `path` or a `profile` is
+  `schema`.
+- A 1.10 validator refuses `op: "rail"` at the schema stage. A loader
+  that does not know the op draws the shape's `bake` when it has one.
+
 ## Color at runtime
 
 Tokens are the recolor surface: a file's palette is its set of colour
@@ -1126,6 +1250,7 @@ the same from any tool:
 | `shades`    | `shades` with a count that differs from the points, or on a sweep (1.8) |
 | `mod`       | a modifier whose `op` this version does not have (1.8)          |
 | `pipe`      | a pipe's `radii` with a count that differs from its path's points, or a closed pipe with fewer than three path points (1.8) |
+| `rail`      | a closed rail with fewer than three path points (1.11) |
 | `skin`      | a skin naming a joint the document lacks, with an entry count that differs from the points, a malformed entry, weights that do not add up to 1, or beside `mods` or `smooth` levels (1.9) |
 
 Warnings (`unknown`, `reserved`, `unresolved`) never fail a file. A loader
@@ -1189,6 +1314,13 @@ the corpus only requires it to load every valid file and refuse those two.
 - 1.9 added `skin` on meshes: joints and per-point weights, a mesh that
   gives at its joints (error `skin`). A file without it is a 1.8 file; a
   1.8 reader draws a skinned shape rigid, with its part.
+- 1.10 added `soften` on a texture's maps and `relief` on a texture: a
+  map blurred, and a height map lit as a surface. A file without them
+  is a 1.9 file; a 1.9 reader draws the maps hard and the faces flat.
+- 1.11 added the sweep op `rail` with `round` (error `rail`): a profile
+  carried upright along a path, its corners mitred and rounded. A file
+  without it is a 1.10 file; a 1.10 reader refuses a rail at the schema
+  stage (a lenient loader draws nothing for it, or its bake).
 
 ## Reserved for later
 

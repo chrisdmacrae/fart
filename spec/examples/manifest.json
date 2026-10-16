@@ -27,12 +27,13 @@
     "ref.texture": "a shape names a texture the document does not have (1.5)",
     "dup.texture": "two textures share a name (1.5)",
     "morph": "a morph on a like part, naming a shape the part lacks or one without points, or with a point count that differs from the base (1.6)",
-    "crease": "a crease outside 0\u20131, on a point the mesh lacks, or on a pair that is not an edge (1.7)",
+    "crease": "a crease outside 0–1, on a point the mesh lacks, or on a pair that is not an edge (1.7)",
     "curve": "a path's in/out with a count that differs from its points, an open path without w, a closed one with fewer than three points (1.7)",
     "paint": "paint with a count that differs from the faces, an index past the last of colors, or paint without colors (1.8)",
     "shades": "shades with a count that differs from the points, or on a sweep (1.8)",
     "mod": "a modifier whose op this version does not have (1.8)",
-    "pipe": "a pipe's radii with a count that differs from its path's points, or a closed pipe with fewer than three path points (1.8)"
+    "pipe": "a pipe's radii with a count that differs from its path's points, or a closed pipe with fewer than three path points (1.8)",
+    "rail": "a closed rail with fewer than three path points (1.11)"
   },
   "warnings": {
     "unknown": "an unknown field, preserved but meaningless to this version",
@@ -772,6 +773,56 @@
       "valid": true,
       "space": "3d",
       "note": "1.9: a sleeve whose skin is on a host: its joints are another document's parts"
+    },
+    {
+      "file": "valid/textures/dents.fart",
+      "valid": true,
+      "note": "1.10: a drawing read as a height map: a ridge and a pit on mid grey"
+    },
+    {
+      "file": "valid/dented.fart",
+      "valid": true,
+      "space": "3d",
+      "note": "1.10: a smoothed block wearing an atlas: relief from a softened height map, a rough map, uvs unwrapped into the cell"
+    },
+    {
+      "file": "invalid/soften-negative.fart",
+      "valid": false,
+      "code": "schema",
+      "note": "soften is a radius: zero or more"
+    },
+    {
+      "file": "invalid/relief-string.fart",
+      "valid": false,
+      "code": "schema",
+      "note": "relief is a number"
+    },
+    {
+      "file": "valid/rail.fart",
+      "valid": true,
+      "space": "3d",
+      "note": "1.11: a turf brow over a rock face round a rounded corner, painted by face; a kerb round a closed path, mitred; a skirt along a curve that climbs"
+    },
+    {
+      "file": "invalid/rail-closed-two.fart",
+      "valid": false,
+      "space": "3d",
+      "code": "rail",
+      "note": "a closed rail of two points"
+    },
+    {
+      "file": "invalid/rail-profile-two.fart",
+      "valid": false,
+      "space": "3d",
+      "code": "curve",
+      "note": "a rail's closed profile of two points"
+    },
+    {
+      "file": "invalid/rail-no-profile.fart",
+      "valid": false,
+      "space": "3d",
+      "code": "schema",
+      "note": "a rail without a profile"
     }
   ],
   "shart_codes": {

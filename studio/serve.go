@@ -93,6 +93,15 @@ func (s *Server) Start(root string) (ServeInfo, error) {
 		}
 		writeJSON(w, files)
 	})
+	mux.HandleFunc("/api/stamp", func(w http.ResponseWriter, r *http.Request) {
+		noStore(w)
+		stamp, err := stampOf(root)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, stamp)
+	})
 	mux.HandleFunc("/api/kinds", func(w http.ResponseWriter, r *http.Request) {
 		noStore(w)
 		files, err := listFiles(root)

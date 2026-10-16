@@ -3,7 +3,7 @@
 // and each colour map rendered once into a small canvas the painters
 // tile: the 2D canvas as a pattern, WebGL as a sampler.
 
-import { resolveTextures, type Doc, type Doc3, type ResolvedTexture, type Texture, type TextureMap } from "@fastart/core";
+import { mapValues, normalRaster, rasterizeMap, resolveTextures, type Doc, type Doc3, type Raster, type ResolvedTexture, type Texture, type TextureMap } from "@fastart/core";
 import { drawDoc } from "../canvas/draw.ts";
 import { shell } from "../shell/shell.ts";
 import { project } from "./project.ts";
@@ -23,11 +23,15 @@ export interface TexturePattern {
 	sx: number;
 	sy: number;
 	mode: TextureMap["mode"];
+	/** 1.10: the relief's normal map (tangent space, green up the image), when the texture has a height map and a relief */
+	normal: HTMLCanvasElement | null;
 	/** bumped when the canvas is redrawn, so WebGL re-uploads */
 	rev: number;
 }
 
-const pow2 = (n: number) => Math.max(8, 2 ** Math.ceil(Math.log2(Math.max(1, n))));
+/** the least a map is rendered at along either side: a small cell (a course of thatch, a brick) is still seen close up */
+const MIN_PX = 256;
+const pow2 = (n: number) => 2 ** Math.ceil(Math.log2(Math.max(MIN_PX, n)));
 
 let revCounter = 0;
 
@@ -45,6 +49,11 @@ export function renderMapCanvas(t: Texture, res: ResolvedTexture, map = "color")
 	canvas.height = h;
 	const ctx = canvas.getContext("2d");
 	if (!ctx) return null;
+	if ((m.map.soften ?? 0) > 0) {
+		// a softened map (1.10) is the reference rasteriser's: the blur wraps and is the same everywhere
+		putRaster(ctx, rasterizeMap(t, m, w, h));
+		return { canvas, sx, sy };
+	}
 	for (let oy = -1; oy <= 1; oy++) {
 		for (let ox = -1; ox <= 1; ox++) {
 			ctx.setTransform(sx, 0, 0, sy, ox * w, oy * h);
@@ -52,6 +61,40 @@ export function renderMapCanvas(t: Texture, res: ResolvedTexture, map = "color")
 		}
 	}
 	return { canvas, sx, sy };
+}
+
+/** A core raster (premultiplied) into a canvas. */
+function putRaster(ctx: CanvasRenderingContext2D, r: Raster) {
+	const img = ctx.createImageData(r.width, r.height);
+	for (let i = 0; i < r.data.length; i += 4) {
+		const a = r.data[i + 3];
+		const k = a > 0 ? 255 / a : 0;
+		img.data[i] = r.data[i] * k;
+		img.data[i + 1] = r.data[i + 1] * k;
+		img.data[i + 2] = r.data[i + 2] * k;
+		img.data[i + 3] = a;
+	}
+	ctx.putImageData(img, 0, 0);
+}
+
+/** the widest a relief's normal map is rendered: it is worked out in JS, a pixel at a time */
+const NORMAL_PX = 512;
+
+/** The relief (1.10) as a normal map: the height map's values, softened, differentiated. Null without a height map or a relief. */
+export function renderNormalCanvas(t: Texture, res: ResolvedTexture): HTMLCanvasElement | null {
+	const m = res.maps.height;
+	const relief = t.relief ?? 0;
+	if (!m || !relief) return null;
+	const [cw, ch] = t.cell;
+	const w = Math.min(NORMAL_PX, pow2(cw * MAP_PX));
+	const h = Math.min(NORMAL_PX, pow2(ch * MAP_PX));
+	const canvas = document.createElement("canvas");
+	canvas.width = w;
+	canvas.height = h;
+	const ctx = canvas.getContext("2d");
+	if (!ctx) return null;
+	putRaster(ctx, normalRaster(mapValues(t, m, w, h), w, h, t.cell, relief));
+	return canvas;
 }
 
 /** Every texture of a document, resolved and rendered. `rel` is the document's project path. */
@@ -64,7 +107,7 @@ export async function loadPatterns(doc: Doc | Doc3, rel: string): Promise<Map<st
 	const resolved = await resolveTextures(doc, read, (text) => parseDoc(text).doc);
 	for (const [name, res] of resolved) {
 		const r = renderMapCanvas(res.texture, res);
-		out.set(name, { texture: res.texture, resolved: res, canvas: r?.canvas ?? null, sx: r?.sx ?? MAP_PX, sy: r?.sy ?? MAP_PX, mode: res.maps.color?.map.mode, rev: ++revCounter });
+		out.set(name, { texture: res.texture, resolved: res, canvas: r?.canvas ?? null, sx: r?.sx ?? MAP_PX, sy: r?.sy ?? MAP_PX, mode: res.maps.color?.map.mode, normal: renderNormalCanvas(res.texture, res), rev: ++revCounter });
 	}
 	return out;
 }

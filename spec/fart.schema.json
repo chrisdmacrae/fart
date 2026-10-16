@@ -876,7 +876,8 @@
                 "enum": [
                   "lathe",
                   "extrude",
-                  "pipe"
+                  "pipe",
+                  "rail"
                 ]
               },
               "axis": {
@@ -909,12 +910,12 @@
                     "type": "boolean"
                   }
                 },
-                "description": "A path body: [radius, along] pairs for a lathe; a closed outline in the plane's other two axes for an extrude; for a pipe (1.8), an optional closed section in place of the circle."
+                "description": "A path body: [radius, along] pairs for a lathe; a closed outline in the plane's other two axes for an extrude; for a pipe (1.8), an optional closed section in place of the circle; for a rail (1.11), [out, along] pairs, open or closed."
               },
               "segments": {
                 "type": "integer",
                 "minimum": 3,
-                "description": "Steps around the axis for a lathe, 12 by default; sides of a round pipe's section, 8 by default."
+                "description": "Steps around the axis for a lathe, 12 by default; sides of a round pipe's section, 8 by default; steps in a quarter turn of a rail's rounded corner, 4 by default."
               },
               "from": {
                 "type": "number"
@@ -942,7 +943,7 @@
                     "$ref": "#/$defs/handles3"
                   }
                 },
-                "description": "Since 1.8, a pipe's spine: a path body with three coordinates."
+                "description": "Since 1.8, a pipe's spine: a path body with three coordinates. Since 1.11 a rail's too."
               },
               "radius": {
                 "type": "number",
@@ -963,7 +964,12 @@
               },
               "closed": {
                 "type": "boolean",
-                "description": "Since 1.8: the pipe's path joins its last point to its first."
+                "description": "Since 1.8: the pipe's path joins its last point to its first. Since 1.11 a rail's too."
+              },
+              "round": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Since 1.11, a rail: the radius its path's corners are rounded to; 0 by default."
               },
               "normals": {
                 "enum": [
@@ -1105,18 +1111,40 @@
                   }
                 },
                 "else": {
-                  "required": [
-                    "axis",
-                    "profile"
-                  ],
-                  "properties": {
-                    "axis": true,
-                    "profile": true
+                  "if": {
+                    "properties": {
+                      "op": {
+                        "const": "rail"
+                      }
+                    },
+                    "required": [
+                      "op"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "path",
+                      "profile"
+                    ],
+                    "properties": {
+                      "path": true,
+                      "profile": true
+                    }
+                  },
+                  "else": {
+                    "required": [
+                      "axis",
+                      "profile"
+                    ],
+                    "properties": {
+                      "axis": true,
+                      "profile": true
+                    }
                   }
                 }
               }
             ],
-            "description": "Since 1.7: a solid generated from a profile, kept as the profile; since 1.8 also op pipe, a section carried along a path. Never in collision."
+            "description": "Since 1.7: a solid generated from a profile, kept as the profile; since 1.8 also op pipe, a section carried along a path; since 1.11 op rail, a profile carried upright along one. Never in collision."
           }
         }
       ]
@@ -1611,6 +1639,11 @@
             "paint",
             "mask"
           ]
+        },
+        "soften": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Since 1.8: a Gaussian blur over the map, its deviation in pattern units, wrapping at the cell."
         }
       }
     },
@@ -1637,6 +1670,10 @@
           "additionalProperties": {
             "$ref": "#/$defs/texture_map"
           }
+        },
+        "relief": {
+          "type": "number",
+          "description": "Since 1.8: how far the height map's value 1 stands proud of 0, in pattern units."
         }
       }
     },

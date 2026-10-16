@@ -1711,12 +1711,19 @@ export function setTextureCell(i: number, axis: 0 | 1, v: number) {
 		d.textures![i].cell = c;
 	}, `tex-cell-${i}-${axis}`);
 }
+/** 1.8: how far the height map stands proud, in pattern units; 0 for none. */
+export function setTextureRelief(i: number, v: number) {
+	mutate((d) => {
+		if (v) d.textures![i].relief = v;
+		else delete d.textures![i].relief;
+	}, `tex-relief-${i}`);
+}
 export function setMap(i: number, map: string, patch: Partial<TextureMap>) {
 	mutate((d) => {
 		const m = d.textures![i].maps[map];
 		if (!m) return;
 		for (const [k, v] of Object.entries(patch)) {
-			if (v === undefined || v === "" || (k === "mode" && v === "paint")) delete (m as Record<string, unknown>)[k];
+			if (v === undefined || v === "" || (k === "mode" && v === "paint") || (k === "soften" && !((v as number) > 0))) delete (m as Record<string, unknown>)[k];
 			else (m as Record<string, unknown>)[k] = v;
 		}
 	});

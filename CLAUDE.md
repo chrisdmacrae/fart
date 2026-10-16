@@ -92,6 +92,15 @@ follow the spec, never the other way round.
   `state/textures.ts` for the 2D painter's patterns and WebGL; the Odin
   loader's `flatten_part` + `Y_UP` and `loaders/odin/examples/raylib_spin`
   are the 3D game path.
+- Relief (1.10): `soften` on a texture's map and `relief` on a texture.
+  Core: `textures.ts` (`mapValues`, `normalRaster`, `ormRaster`,
+  `bakeTexture`; `fart bake --textures` writes `.normal.png` and
+  `.orm.png`), `unwrap.ts` (`unwrapDoc`, `fart unwrap`: a cage's faces
+  as islands packed into the texture's cell), `gltf.ts` (normal and
+  metallic-roughness textures, tangents; `fart gltf --px`). Studio:
+  `state/textures.ts` renders the normal map, `canvas/gl3.ts` lights by
+  it per pixel (the pattern's axes ride in each vertex), the textures
+  panel has Relief and Soften, the model inspector Unwrap and Box map.
 - Mesh editing in the model screen: `frontend/src/state/meshops.ts` is
   the geometry (pure, no imports: extrude, inset, loop cut, rims, merge,
   flip, wind outward, creases; every result says where each point and

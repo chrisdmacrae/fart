@@ -54,6 +54,7 @@ tris index the points) is checked by the validator in `packages/core`:
     npx fart gltf pistol.fart                             # the model as a .glb, animations included
     npx fart hull hut.fart --part table                   # a convex hull into collision, riding the part (1.4)
     npx fart bake --textures out/ --px 64 crate.fart      # every texture map as a PNG (1.5); textures are drawings, tiled
+    npx fart unwrap bag.fart                              # uvs for textured meshes: islands packed into the texture's cell (1.10)
     npx fart validate camp.shart                          # a scene, checked with its files in hand
     npx fart flatten camp.shart --t 0.5                   # a scene's instances, placed: what a renderer draws
     npx fart build art/                                   # the compiled sidecar name.fart.glb of every 3D file (1.8)

@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io/fs"
 	"log"
 	"os"
@@ -144,6 +145,33 @@ func (p *ProjectService) ListFiles(root string) ([]string, error) {
 		return nil, errors.New("no project open")
 	}
 	return listFiles(root)
+}
+
+// Stamp is a short word that changes whenever the project's files do:
+// one added, removed, renamed or written, by this app or by anything
+// else. The navigator asks for it every couple of seconds and re-reads
+// the folder when it differs. One walk, no file opened.
+func (p *ProjectService) Stamp(root string) (string, error) {
+	if root == "" {
+		return "", errors.New("no project open")
+	}
+	return stampOf(root)
+}
+
+func stampOf(root string) (string, error) {
+	files, err := listFiles(root)
+	if err != nil {
+		return "", err
+	}
+	h := fnv.New64a()
+	for _, rel := range files {
+		fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel)))
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(h, "%s\x00%d\x00%d\n", rel, fi.ModTime().UnixNano(), fi.Size())
+	}
+	return fmt.Sprintf("%d:%016x", len(files), h.Sum64()), nil
 }
 
 // Kinds is every file of the project and what it is ("2D", "3D",

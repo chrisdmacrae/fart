@@ -17,10 +17,11 @@ import type { Compiled, CompiledPart } from "../state/sidecarRead.ts";
 // p, n: position and normal in the part's rest space. c: the slot's colour. t: pattern coordinates.
 // k: (the shape's own shade, 1 for a smooth corner normal). m0..m2: the part's map into the world (rows);
 // v0..v2: the view's turn (rows). f: -1 under a mirror, for smooth normals. L: the light, a: ambient.
-const VS = `attribute vec3 p; attribute vec3 n; attribute vec4 c; attribute vec2 t; attribute vec2 k;
+// g, b (1.10, relief): the pattern's own axes across the triangle, along +u and +v, in rest space; zero where there is none.
+const VS = `attribute vec3 p; attribute vec3 n; attribute vec4 c; attribute vec2 t; attribute vec2 k; attribute vec3 g; attribute vec3 b;
 uniform vec4 m0; uniform vec4 m1; uniform vec4 m2; uniform vec3 v0; uniform vec3 v1; uniform vec3 v2;
 uniform float f; uniform vec3 L; uniform float a; uniform vec3 u; uniform vec2 h;
-varying vec4 vc; varying vec2 vt; varying float vl; varying vec3 vn; varying vec3 vb;
+varying vec4 vc; varying vec2 vt; varying float vl; varying vec3 vn; varying vec3 vb; varying vec3 vg; varying vec3 vh; varying float vk;
 void main() {
 	vec4 q = vec4(p, 1.0);
 	vec3 w = vec3(dot(m0, q), dot(m1, q), dot(m2, q));
@@ -29,16 +30,20 @@ void main() {
 	vec3 ne = normalize(vec3(dot(v0, nw), dot(v1, nw), dot(v2, nw))) * (k.y > 0.5 ? f : 1.0);
 	float light = (a + (1.0 - a) * max(0.0, dot(ne, L))) * k.x;
 	gl_Position = vec4((e.x - u.x) * u.z / h.x, -(e.y - u.y) * u.z / h.y, e.z / 4000.0, 1.0);
-	vc = vec4(min(c.rgb * light, vec3(1.0)), c.a); vt = t; vl = light; vn = ne; vb = c.rgb * k.x;
+	vc = vec4(min(c.rgb * light, vec3(1.0)), c.a); vt = t; vl = light; vn = ne; vb = c.rgb * k.x; vk = k.x;
+	vec3 gw = vec3(dot(m0.xyz, g), dot(m1.xyz, g), dot(m2.xyz, g));
+	vec3 bw = vec3(dot(m0.xyz, b), dot(m1.xyz, b), dot(m2.xyz, b));
+	vg = vec3(dot(v0, gw), dot(v1, gw), dot(v2, gw)); vh = vec3(dot(v0, bw), dot(v1, bw), dot(v2, bw));
 }`;
 // a textured triangle: the light on the token (vc), the map's colour laid over where it paints (paint) or multiplying it (mask).
 // clay: the light is worked out per pixel from the normal instead (vn, in view space; vb is the slot's own colour): a warm key
 // with a soft terminator, a cool fill from the other side, a little rim. Rounded forms read the way a cel or clay shaded game
 // shows them. dim: a mannequin's layer, washed toward the canvas (bgc).
-const FS = `precision mediump float; varying vec4 vc; varying vec2 vt; varying float vl; varying vec3 vn; varying vec3 vb;
-uniform sampler2D s; uniform float tex; uniform float mask; uniform float clay; uniform vec3 K; uniform float dim; uniform vec3 bgc;
-vec3 soft(vec3 base) {
-	vec3 n = normalize(vn);
+// relief (1.10): the texture's normal map (ns) tilts the normal in the pattern's frame (vg along +u, vh along +v, which runs
+// down the image while the map's green runs up it), and the light is worked out per pixel from that, by the projector's rule.
+const FS = `precision mediump float; varying vec4 vc; varying vec2 vt; varying float vl; varying vec3 vn; varying vec3 vb; varying vec3 vg; varying vec3 vh; varying float vk;
+uniform sampler2D s; uniform sampler2D ns; uniform float tex; uniform float mask; uniform float nrm; uniform float amb; uniform float clay; uniform vec3 K; uniform float dim; uniform vec3 bgc;
+vec3 soft(vec3 base, vec3 n) {
 	float key = smoothstep(-0.28, 0.72, dot(n, K));
 	float fill = max(0.0, dot(n, normalize(vec3(-K.x, -0.35 * K.y, K.z))));
 	float rim = pow(1.0 - clamp(-n.z, 0.0, 1.0), 3.0);
@@ -48,29 +53,58 @@ vec3 soft(vec3 base) {
 }
 void main() {
 	vec4 o = vc;
+	vec3 N = normalize(vn);
+	// lit: the token's colour under the light, and the light itself; per vertex, or per pixel under a relief
+	vec3 lit = vc.rgb;
+	float light = vl;
+	if (nrm > 0.5 && dot(vg, vg) > 1e-12 && dot(vh, vh) > 1e-12) {
+		vec3 d = texture2D(ns, vt).rgb * 2.0 - 1.0;
+		vec3 T = normalize(vg - N * dot(N, vg));
+		vec3 B = normalize(vh - N * dot(N, vh));
+		N = normalize(T * d.x - B * d.y + N * d.z);
+		light = (amb + (1.0 - amb) * max(0.0, dot(N, K))) * vk;
+		lit = min(vb * (light / max(vk, 1e-4)), vec3(1.0));
+		o = vec4(lit, vc.a);
+	}
 	if (clay > 0.5) {
 		vec3 base = vb;
 		if (tex > 0.5) {
 			vec4 m = texture2D(s, vt);
 			base = mask > 0.5 ? vb * dot(m.rgb, vec3(0.2126, 0.7152, 0.0722)) * m.a : mix(vb, m.rgb, m.a);
 		}
-		o = vec4(soft(base), vc.a);
+		o = vec4(soft(base, N), vc.a);
 	} else if (tex > 0.5) {
 		vec4 m = texture2D(s, vt);
-		if (mask > 0.5) { float v = dot(m.rgb, vec3(0.2126, 0.7152, 0.0722)) * m.a; o = vec4(vc.rgb * v, vc.a); }
-		else o = vec4(mix(vc.rgb, m.rgb * vl, m.a), vc.a);
+		if (mask > 0.5) { float v = dot(m.rgb, vec3(0.2126, 0.7152, 0.0722)) * m.a; o = vec4(lit * v, vc.a); }
+		else o = vec4(mix(lit, m.rgb * light, m.a), vc.a);
 	}
 	gl_FragColor = vec4(mix(o.rgb, bgc, dim), o.a);
 }`;
 
-/** floats per vertex: position 3, normal 3, colour 4, pattern 2, (shade, smooth) 2 */
-const STRIDE = 14;
+/** floats per vertex: position 3, normal 3, colour 4, pattern 2, (shade, smooth) 2, the pattern's axes 3 + 3 */
+const STRIDE = 20;
+
+/** The pattern's axes across a triangle: how far a point moves per unit of u, and of v. Zero where the pattern is flat on it. */
+function patternAxes(a: ArrayLike<number>, b: ArrayLike<number>, c: ArrayLike<number>, ua: ArrayLike<number>, ub: ArrayLike<number>, uc: ArrayLike<number>): [Vec3, Vec3] {
+	const du1 = ub[0] - ua[0];
+	const dv1 = ub[1] - ua[1];
+	const du2 = uc[0] - ua[0];
+	const dv2 = uc[1] - ua[1];
+	const det = du1 * dv2 - du2 * dv1;
+	if (Math.abs(det) < 1e-12) return [[0, 0, 0], [0, 0, 0]];
+	const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+	const e2 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+	return [
+		[(e1[0] * dv2 - e2[0] * dv1) / det, (e1[1] * dv2 - e2[1] * dv1) / det, (e1[2] * dv2 - e2[2] * dv1) / det],
+		[(e2[0] * du1 - e1[0] * du2) / det, (e2[1] * du1 - e1[1] * du2) / det, (e2[2] * du1 - e1[2] * du2) / det],
+	];
+}
 
 interface Gl {
 	gl: WebGLRenderingContext;
 	prog: WebGLProgram;
-	attr: Record<"p" | "n" | "c" | "t" | "k", number>;
-	uni: Record<"m0" | "m1" | "m2" | "v0" | "v1" | "v2" | "f" | "L" | "a" | "u" | "h" | "s" | "tex" | "mask" | "clay" | "K" | "dim" | "bgc", WebGLUniformLocation>;
+	attr: Record<"p" | "n" | "c" | "t" | "k" | "g" | "b", number>;
+	uni: Record<"m0" | "m1" | "m2" | "v0" | "v1" | "v2" | "f" | "L" | "a" | "u" | "h" | "s" | "ns" | "tex" | "mask" | "nrm" | "amb" | "clay" | "K" | "dim" | "bgc", WebGLUniformLocation>;
 	/** uploaded colour maps, by texture name, with the pattern rev they came from */
 	textures: Map<string, { tex: WebGLTexture; rev: number }>;
 	/** the vertex buffers on this context, and the frame each was last drawn in */
@@ -102,8 +136,8 @@ function setup(canvas: HTMLCanvasElement): Gl | null {
 	const out: Gl = {
 		gl,
 		prog,
-		attr: { p: a("p"), n: a("n"), c: a("c"), t: a("t"), k: a("k") },
-		uni: { m0: u("m0"), m1: u("m1"), m2: u("m2"), v0: u("v0"), v1: u("v1"), v2: u("v2"), f: u("f"), L: u("L"), a: u("a"), u: u("u"), h: u("h"), s: u("s"), tex: u("tex"), mask: u("mask"), clay: u("clay"), K: u("K"), dim: u("dim"), bgc: u("bgc") },
+		attr: { p: a("p"), n: a("n"), c: a("c"), t: a("t"), k: a("k"), g: a("g"), b: a("b") },
+		uni: { m0: u("m0"), m1: u("m1"), m2: u("m2"), v0: u("v0"), v1: u("v1"), v2: u("v2"), f: u("f"), L: u("L"), a: u("a"), u: u("u"), h: u("h"), s: u("s"), ns: u("ns"), tex: u("tex"), mask: u("mask"), nrm: u("nrm"), amb: u("amb"), clay: u("clay"), K: u("K"), dim: u("dim"), bgc: u("bgc") },
 		textures: new Map(),
 		buffers: new Map(),
 		frame: 0,
@@ -184,7 +218,7 @@ const stampOf = (solids: readonly Shape3[], tokens: readonly Token[], patterns?:
 		// 1.8: the further tokens its faces are painted with
 		if (sh.kind === "mesh" || sh.kind === "sweep") for (const name of sh.colors ?? []) s += `/${colorOf(tokens, name).join(",")}`;
 		const p = sh.texture ? patterns?.get(sh.texture) : undefined;
-		s += p?.canvas ? `@${sh.texture}:${p.rev};` : ";";
+		s += p?.canvas || p?.normal ? `@${sh.texture}:${p.rev};` : ";";
 	}
 	return s;
 };
@@ -217,13 +251,15 @@ function build(solids: readonly Shape3[], tokens: readonly Token[], patterns: Ma
 		const pattern = sh.texture ? patterns?.get(sh.texture) : undefined;
 		const cell = pattern?.texture.cell ?? [1, 1];
 		// a texture name is per document; key the batch by the pattern's identity
-		const texture = pattern?.canvas ? `${sh.texture}@${pattern.rev}` : null;
+		// (a texture with no colour map may still have a relief to light by)
+		const texture = pattern?.canvas || pattern?.normal ? `${sh.texture}@${pattern.rev}` : null;
 		const round = sh.kind === "ball" || sh.kind === "rod";
 		const key = `${texture}|${round ? 0 : 1}`;
 		let list = lists.get(key);
 		if (!list) lists.set(key, (list = { texture, pattern: texture ? pattern : undefined, cull: !round, v: [] }));
 		const v = list.v;
 		const ZERO: Vec2 = [0, 0];
+		const NO_AXES: [Vec3, Vec3] = [[0, 0, 0], [0, 0, 0]];
 		/** One triangle: flat (its own normal, turned away from `out` when given) or with a normal per corner. */
 		const tri = (a: Vec3, b: Vec3, c: Vec3, out?: Vec3, vn?: [Vec3, Vec3, Vec3], uv?: [Vec2, Vec2, Vec2], paint: number[] = col, own?: [number, number, number]) => {
 			let n = v3cross(v3sub(b, a), v3sub(c, a));
@@ -232,11 +268,12 @@ function build(solids: readonly Shape3[], tokens: readonly Token[], patterns: Ma
 				if (v3dot(n, v3sub(mid, out)) < 0) n = [-n[0], -n[1], -n[2]];
 			}
 			const corners = [a, b, c];
+			const [ax, bx] = uv && pattern?.normal ? patternAxes(a, b, c, uv[0], uv[1], uv[2]) : NO_AXES;
 			for (let i = 0; i < 3; i++) {
 				const p = corners[i];
 				const nn = vn ? vn[i] : n;
 				const t = uv ? uv[i] : ZERO;
-				v.push(p[0], p[1], p[2], nn[0], nn[1], nn[2], paint[0], paint[1], paint[2], paint[3], t[0], t[1], own ? shade * own[i] : shade, vn ? 1 : 0);
+				v.push(p[0], p[1], p[2], nn[0], nn[1], nn[2], paint[0], paint[1], paint[2], paint[3], t[0], t[1], own ? shade * own[i] : shade, vn ? 1 : 0, ax[0], ax[1], ax[2], bx[0], bx[1], bx[2]);
 				if (p[0] < lo[0]) lo[0] = p[0];
 				if (p[1] < lo[1]) lo[1] = p[1];
 				if (p[2] < lo[2]) lo[2] = p[2];
@@ -330,14 +367,14 @@ export function compiledMesh(part: CompiledPart, tokens: readonly Token[], patte
 	let stamp = "";
 	for (const pr of part.prims) {
 		const p = pr.texture ? patterns?.get(pr.texture) : undefined;
-		stamp += `${colorOf(tokens, pr.token).join(",")}${p?.canvas ? `@${pr.texture}:${p.rev}` : ""};`;
+		stamp += `${colorOf(tokens, pr.token).join(",")}${p?.canvas || p?.normal ? `@${pr.texture}:${p.rev}` : ""};`;
 	}
 	const have = byTokens.get(tokens);
 	if (have && have.stamp === stamp) return have;
 	const lists = new Map<string, { texture: string | null; pattern?: TexturePattern; count: number; prims: typeof part.prims }>();
 	for (const pr of part.prims) {
 		const pattern = pr.texture && pr.uv ? patterns?.get(pr.texture) : undefined;
-		const texture = pattern?.canvas ? `${pr.texture}@${pattern.rev}` : null;
+		const texture = pattern?.canvas || pattern?.normal ? `${pr.texture}@${pattern.rev}` : null;
 		const key = String(texture);
 		let list = lists.get(key);
 		if (!list) lists.set(key, (list = { texture, pattern: texture ? pattern : undefined, count: 0, prims: [] }));
@@ -370,6 +407,15 @@ export function compiledMesh(part: CompiledPart, tokens: readonly Token[], patte
 				data[o + 12] = pr.shade[i];
 				// (the normal is the sidecar's, as it stands: a face's, or a corner's with its creases already respected)
 				data[o + 13] = 0;
+				if (l.pattern?.normal && pr.uv) {
+					// the pattern's axes, from the triangle this vertex is a corner of (a sidecar's vertices come three to a triangle)
+					const t0 = i - (i % 3);
+					const at = (j: number) => pr.pos.subarray(j * 3, j * 3 + 3);
+					const uvAt = (j: number) => pr.uv!.subarray(j * 2, j * 2 + 2);
+					const [ax, bx] = patternAxes(at(t0), at(t0 + 1), at(t0 + 2), uvAt(t0), uvAt(t0 + 1), uvAt(t0 + 2));
+					data.set(ax, o + 14);
+					data.set(bx, o + 17);
+				}
 				o += STRIDE;
 			}
 		}
@@ -487,6 +533,8 @@ export function drawLayers(canvas: HTMLCanvasElement, layers: readonly SolidLaye
 	gl.uniform3f(uni.u, view.pan[0], view.pan[1], view.zoom);
 	gl.uniform2f(uni.h, view.W / 2, view.H / 2);
 	gl.uniform1i(uni.s, 0);
+	gl.uniform1i(uni.ns, 1);
+	gl.uniform1f(uni.amb, ambient);
 	gl.uniform1f(uni.clay, look.clay ? 1 : 0);
 	gl.uniform3f(uni.K, l[0], l[1], l[2]);
 	const bg = look.bg ?? [1, 1, 1];
@@ -523,32 +571,42 @@ export function drawLayers(canvas: HTMLCanvasElement, layers: readonly SolidLaye
 					gl.vertexAttribPointer(attr.c, 4, gl.FLOAT, false, B, 24);
 					gl.vertexAttribPointer(attr.t, 2, gl.FLOAT, false, B, 40);
 					gl.vertexAttribPointer(attr.k, 2, gl.FLOAT, false, B, 48);
+					gl.vertexAttribPointer(attr.g, 3, gl.FLOAT, false, B, 56);
+					gl.vertexAttribPointer(attr.b, 3, gl.FLOAT, false, B, 68);
 					bound = b;
 				}
 				if (b.texture !== tex) {
 					tex = b.texture;
-					if (b.texture && b.pattern?.canvas) {
-						// the colour map as a wrapping texture, uploaded when its render changes
-						let have = g.textures.get(b.texture);
-						if (!have || have.rev !== b.pattern.rev) {
+					// a map as a wrapping texture, uploaded when its render changes
+					const upload = (key: string, canvas: HTMLCanvasElement, rev: number, unit: number) => {
+						let have = g.textures.get(key);
+						gl.activeTexture(unit);
+						if (!have || have.rev !== rev) {
 							const t = have?.tex ?? gl.createTexture()!;
 							gl.bindTexture(gl.TEXTURE_2D, t);
-							gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, b.pattern.canvas);
+							gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
 							gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
 							gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 							gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 							gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-							have = { tex: t, rev: b.pattern.rev };
-							g.textures.set(b.texture, have);
+							have = { tex: t, rev };
+							g.textures.set(key, have);
 						}
-						gl.activeTexture(gl.TEXTURE0);
 						gl.bindTexture(gl.TEXTURE_2D, have.tex);
+					};
+					if (b.texture && b.pattern?.canvas) {
+						upload(b.texture, b.pattern.canvas, b.pattern.rev, gl.TEXTURE0);
 						gl.uniform1f(uni.tex, 1);
 						gl.uniform1f(uni.mask, b.pattern.mode === "mask" ? 1 : 0);
 					} else {
 						gl.uniform1f(uni.tex, 0);
 						gl.uniform1f(uni.mask, 0);
 					}
+					// relief (1.10): the texture's normal map, on the second unit
+					if (b.texture && b.pattern?.normal) {
+						upload(`${b.texture}#normal`, b.pattern.normal, b.pattern.rev, gl.TEXTURE1);
+						gl.uniform1f(uni.nrm, 1);
+					} else gl.uniform1f(uni.nrm, 0);
 				}
 				// a face is drawn when it winds toward the viewer; a mirror reverses the winding
 				if (b.cull !== culling) {

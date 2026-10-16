@@ -294,6 +294,35 @@ third coordinate. Model props once, then project them to the 2D views a
     while its hash matches the `.fart`. Gitignore `*.fart.glb`, run
     `fart build` as a build step (`fart build --check art/` in CI,
     `--clean` to remove them).
+  - **Rail (1.11)**: `{"kind": "sweep", "op": "rail", "path": {"points":
+    [[x,y,z], ...]}, "profile": {"points": [[out, down], ...]}, "round":
+    1, "segments": 4, "closed": false}`: a profile carried *upright*
+    along a path (a pipe's section turns with the path; a rail's stands
+    along `axis`, y by default). Use it for anything that follows an
+    outline: a cliff face with its brow, a kerb, a skirting board, a
+    gutter. Draw the profile as the cross-section looks, out to the
+    right; an open one is a sheet facing its own left (drawn going down
+    it faces out), `"closed": true` on the profile makes a capped
+    moulding. Corners are mitred; `round` fillets them (paths without
+    handles only). Paint counts a face per profile edge per path
+    segment.
+- **Relief and sheets (1.10)**: for a surface that is not flat fills
+  (paper, cloth, worn metal), put the form in the cage and the fine
+  detail in maps. A map takes `soften` (a blur in the drawing's units:
+  a hard line becomes a ridge with a slope); a texture with a `height`
+  map takes `relief` (how far white stands proud of black, in the same
+  units) and is lit by it. Draw the height map on mid grey (128) with
+  lighter lines for ridges and darker for valleys, `soften` about half
+  a line's width. `rough`, `metal` and `ao` are the other maps the
+  tools read. For one sheet over a whole mesh, make the texture's
+  `cell` the sheet and call `unwrapDoc(doc)` (or `fart unwrap file`):
+  it writes the cage's `mapping.uvs`, each side an island, and they
+  ride through mods and `smooth`; draw the maps in those coordinates.
+  With `paint` or a `solidify` `inner` token, make the colour map
+  `"mode": "mask"` (greys) so each token keeps its own colour under it.
+  `fart bake --textures out/ --px 256` writes the maps plus
+  `<texture>.normal.png` and `<texture>.orm.png`; `fart gltf --px 256`
+  puts them in the material.
 - **Look at it**: open the folder in Uranus; a 3D file opens the model
   screen (orbit, the four tools make box/ball/rod/prism, Deform, the
   inspector's normals/smooth/crease fields, Project…).
