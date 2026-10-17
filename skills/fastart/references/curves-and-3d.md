@@ -178,6 +178,31 @@ third coordinate. Model props once, then project them to the 2D views a
     moulding. Corners are mitred; `round` fillets them (paths without
     handles only). Paint counts a face per profile edge per path
     segment.
+- **Skins (1.9)**: a mesh that gives at its joints instead of turning
+  whole with its part (a sleeve, a neck, a tail):
+
+  ```json
+  {"kind": "mesh", "color": "cloth", "points": [...], "faces": [...],
+   "skin": {"joints": ["upper_arm", "torso"],
+            "weights": [[0, 1], [0, 0.5, 1, 0.5], [1, 1], ...]}}
+  ```
+
+  `joints` names parts (any part, the shape's own or not); `weights` has
+  one entry per point, in `points` order: one to four pairs `[joint
+  index, weight]`, each weight above 0, no joint twice, adding to 1.
+  A point is placed by the weighted sum of its joints' world maps
+  (linear blend skinning); rest is every part at identity, so there is
+  nothing to bind: model the mesh where it is at rest. A morph moves the
+  points first. A `like` part's copy follows its own side's twins, and a
+  mirrored part's points are reflected across x = 0 where the shape and
+  a joint differ in side, so one sleeve serves both arms. `"host":
+  true` makes `joints` name parts of **another** document the file is
+  drawn on (clothes on a body); drawn alone, a host skin is rigid. A
+  skin is on a drawn mesh with no `mods` and no `smooth` levels (error
+  `skin` for every broken rule). Give a bend more points or spread it
+  over more parts: a joint turned far thins. glTF export writes a skin;
+  `fart import` keeps one (`--merge` drops it); projection places the
+  points before it flattens.
 - **Relief and sheets (1.10)**: for a surface that is not flat fills
   (paper, cloth, worn metal), put the form in the cage and the fine
   detail in maps. A map takes `soften` (a blur in the drawing's units:
@@ -194,7 +219,8 @@ third coordinate. Model props once, then project them to the 2D views a
   `"mode": "mask"` (greys) so each token keeps its own colour under it.
   `fart bake --textures out/ --px 256` writes the maps plus
   `<texture>.normal.png` and `<texture>.orm.png`; `fart gltf --px 256`
-  puts them in the material.
+  puts them in the material. A model painted elsewhere keeps its
+  pictures instead (1.12, image maps: `references/textures.md`).
 - **Look at it**: open the folder in Uranus; a 3D file opens the model
   screen (orbit, the four tools make box/ball/rod/prism, Deform, the
   inspector's normals/smooth/crease fields, Project…).
@@ -222,12 +248,27 @@ for sp in frame {
 ```
 
 Light in a shader from the normals, or bake it into vertex colours the
-way the example does. `blend_poses_3d`, `layer_poses_3d`,
+way the example does. Textures: `resolve_textures_3d(&doc, resolver,
+user)` fills `doc.texture_docs[texture][map]`, a `Map_Doc` holding the
+map's drawing (`doc`, `state`) or, for an image map (1.12), its pixels
+(`pixels`, 8-bit RGBA, `width` × `height`; upload them as they are);
+`Tri_Mesh.uvs` are pattern coordinates, divide by the texture's `cell`.
+The compiled sidecar (1.8): `sc, fresh := load_sidecar(&doc, source,
+glb)` then `flatten_part_sidecar(&sc, &doc, &part, &meshes)` in place of
+`flatten_part`, falling back when it says no (`loaders/odin/sidecar.odin`
+has the whole pattern). Skins (1.9): the Odin loader reads `skin` but
+draws the mesh rigid with its part for now; in TypeScript
+`shapesOf3Skinned(doc, part, entry, W)` (W from `worldTransforms3` of
+the same pose) gives the part's shapes with skinned points placed, in
+the part's rest space, and `shapesOf3Worn` places a host skin on its
+host. `blend_poses_3d`, `layer_poses_3d`,
 `clip_events_3d`, `attach_xf_3d` (dir-aligned sockets) and
 `apply_palette_3d` are the 2D calls with a third axis.
 
 **TypeScript**: `as3d`, `worldTransforms3`, `sampleClip3`, `sampleTargets3`,
-`solveTargets3`, `flattenPart`/`triMesh`, `Y_UP`, `projectDoc`, `toGlb`.
+`solveTargets3`, `flattenPart`/`triMesh`, `shapesOf3Skinned`, `Y_UP`,
+`projectDoc`, `toGlb`, `importGltf`/`gltfImages`, `resolveTextures`
+(pass a bytes reader for image maps), `bakeTexture`, `fromPng`/`toPng`.
 
 A frame's entries may morph (1.6): `morphs_3d(&doc, &sp)` says so, and
 `flatten_part_posed(&doc, part, &sp, &tms)` flattens the part with the

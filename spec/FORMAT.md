@@ -1,4 +1,4 @@
-# Fast Art Format (.fart) — v1.5
+# Fast Art Format (.fart) — v1.12
 
 JSON-backed vector art for games. The format is the contract: any editor
 that writes it and any engine that reads it agree through this document

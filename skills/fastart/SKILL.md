@@ -1,6 +1,6 @@
 ---
 name: fastart
-description: Write, edit, validate and load .fart files (the Fast Art Format, JSON vector art for games, 2D and low-poly 3D, with parts, states, clips, IK chains, swappable palettes, collision, and textures that are themselves drawings) and .shart scenes (the Scene Hierarchy of Art, which places .fart files). Use when a game needs sprites, props, models, animations, palettes, textures or scenes made by hand or by script, when such files need checking or projecting from 3D to 2D, or when loading them in Odin or TypeScript.
+description: Write, edit, validate, import and load .fart files (the Fast Art Format, JSON vector art for games, 2D and low-poly 3D, with parts, states, clips, IK chains, swappable palettes, collision, skins, and textures that are drawings or PNGs) and .shart scenes (the Scene Hierarchy of Art, which places .fart files). Use when a game needs sprites, props, models, animations, palettes, textures or scenes made by hand or by script, when a glTF/glb model and its textures should become a .fart, when such files need checking or projecting from 3D to 2D, or when loading them in Odin or TypeScript.
 ---
 
 # fastart: the Fast Art Format
@@ -8,8 +8,9 @@ description: Write, edit, validate and load .fart files (the Fast Art Format, JS
 A `.fart` file is JSON: shapes grouped into **parts**, arranged by
 **states**, animated by **clips** (states in time), reached by IK
 **chains**, coloured by named **slots** a palette fills in, surfaced by
-**textures** that are themselves drawings, and, since 1.3, either flat
-or a low-poly **3D** model (`"space": "3d"`) that projects to 2D views.
+**textures** whose maps are drawings (or, since 1.12, PNGs), and, since
+1.3, either flat or a low-poly **3D** model (`"space": "3d"`) that
+projects to 2D views, exports to glTF and imports from it.
 A `.shart` file is a **scene**: `.fart` files placed, posed and
 recoloured in a tree. The format is the contract; the checkout at
 `{{FASTART}}` holds the spec (`spec/FORMAT.md`, `spec/PROJECT.md`,
@@ -124,6 +125,25 @@ recoloured in a tree. The format is the contract; the checkout at
   - `"shade": 0.7` on a shape: multiplies the slot's r, g, b (alpha
     kept); lighting that survives a palette swap. Absent = 1.
   - `"space": "3d"` at the top: a 3D model. See **3D** below.
+- **1.4 to 1.12**, each optional and each in a reference:
+  - 1.4: posed collision (`part`, `layer`), the `box` kind, convex
+    collision meshes (`fart hull`). See `references/curves-and-3d.md`.
+  - 1.5: `textures` and `texture` + `mapping` on shapes.
+    `references/textures.md`.
+  - 1.6: `morph` on state entries and keys (a shape's points in a pose).
+  - 1.7: the `path` kind, smooth surfaces (`normals`, `smooth`,
+    `creases`), `sweep` (lathe, extrude).
+  - 1.8: `colors` + `paint` (a colour per face), `shades` (per point),
+    `mods` (`mirror`, `solidify`, `crease`), the `pipe` sweep, the
+    compiled sidecar `name.fart.glb` (`fart build`).
+  - 1.9: `skin` on a mesh (points that follow several parts by weight;
+    `host: true` for clothes drawn on a body).
+  - 1.10: `soften` on a map, `relief` on a texture (a height map lit as
+    a surface), `fart unwrap` (explicit uvs packed into the cell).
+  - 1.11: the `rail` sweep (a profile carried upright along a path).
+  - 1.12: `image` on a map: a PNG stretched over the cell instead of a
+    drawing; a map named `normal` is a normal map. `fart import
+    model.glb --map color=albedo.png` brings a model and its textures.
 - **Palettes**: `palette` is the file's slots with default colours.
   `palette_refs` are paths relative to *this file* to palette files
   (colours and no parts). Lookup is the file's own palette first, then
@@ -177,9 +197,11 @@ Cheapest first; most work needs only the first three steps.
 Longer sections, read when the task needs them:
 
 - `references/curves-and-3d.md`: paths and the pen, `space: "3d"`
-  (mesh, ball, rod, sweeps, smooth surfaces, creases), projection,
-  glTF, 3D collision, 3D chains.
-- `references/textures.md`: textures as drawings (1.5), mapping.
+  (mesh, ball, rod, sweeps, pipes, rails, smooth surfaces, creases),
+  paint, shades, mods, skins, projection, glTF export and import (with
+  textures), the sidecar, 3D collision, 3D chains.
+- `references/textures.md`: textures (1.5): maps as drawings or PNGs
+  (1.12), mapping, uvs, relief and soften (1.10), unwrap.
 - `references/scenes.md`: `.shart` scenes.
 - `references/loaders.md`: loading in Odin and TypeScript, blending,
   layering, collision worlds, the raylib paths.
@@ -246,6 +268,16 @@ and the note.
   seam's points at exactly 0 on the axis, and never model the far half
   (it would be doubled). `paint` counts the cage's faces, before any
   mod; the mods carry it over.
+- A texture map is a drawing (`ref`) **or** a picture (`image`, 1.12),
+  never both, and a picture takes no `palette` or `state` (error
+  `schema`). A tool built before 1.12 refuses every image map ("a map
+  names a drawing"): update it (Uranus, the CLI, the loader) rather
+  than editing the file. A palette swap never reaches into a picture;
+  for a recolourable model make the colour map `"mode": "mask"`.
+- A skin's weights are per point, pairs `[joint, weight, ...]` adding to
+  1, on a mesh with no `mods` and no `smooth` (error `skin`). The Odin
+  loader does not place skinned points yet (it draws the mesh rigid);
+  core (`shapesOf3Skinned`), Uranus and glTF export do.
 - `solidify` moves along point normals, so the cage must be wound
   outward first: a cage wound inward grows its wall outward and shows
   its lining on the outside.

@@ -53,7 +53,7 @@ tris index the points) is checked by the validator in `packages/core`:
     npx fart project pistol.fart --view left --view top   # 2D views of a 3D file (1.3)
     npx fart gltf pistol.fart                             # the model as a .glb, animations included
     npx fart hull hut.fart --part table                   # a convex hull into collision, riding the part (1.4)
-    npx fart bake --textures out/ --px 64 crate.fart      # every texture map as a PNG (1.5); textures are drawings, tiled
+    npx fart bake --textures out/ --px 64 crate.fart      # every texture map as a PNG (1.5); maps are drawings, tiled, or PNGs (1.12)
     npx fart import stick.glb --map color=albedo.png --map normal=normal.png   # a glTF as a .fart, its textures as image maps (1.12)
     npx fart unwrap bag.fart                              # uvs for textured meshes: islands packed into the texture's cell (1.10)
     npx fart validate camp.shart                          # a scene, checked with its files in hand

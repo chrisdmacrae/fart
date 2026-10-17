@@ -403,11 +403,26 @@ another map, so they line up for free. **open** edits the drawing.
 
 A shape takes a texture in its section: in 2D with a placement (where
 the pattern's origin lands, its turn, its size); in the model screen
-with a **size** only, since faces are box mapped: each face reads the
-two world axes across its normal, so planks line up across a wall
-with nothing authored. **paint** lays the map's colours over the
-shape's slot where it paints; **mask** multiplies the slot by the
-map's value. A palette swap still recolours the slot underneath.
+with a **size**, since faces are box mapped by default: each face reads
+the two world axes across its normal, so planks line up across a wall
+with nothing authored. A mesh may instead carry its own pattern
+coordinates per corner (**uvs** shows on the Size row): **Unwrap** lays
+its faces flat as islands packed into the cell, so the texture becomes
+one sheet over the mesh, and **Box map** drops them again. An imported
+model brings its own. **paint** lays the map's colours over the shape's
+slot where it paints; **mask** multiplies the slot by the map's value.
+A palette swap still recolours the slot underneath, but never reaches
+into a picture: for a model you will recolour, use a picture as a
+**mask** over a light slot.
+
+**Relief and soften (format 1.10).** A map's **Soften** blurs it (in the
+drawing's units, wrapping at the cell): a hard line in a height map
+becomes a ridge with a slope. A texture with a **height** map has
+**Relief**, how far its white stands proud of its black; the model
+screen lights the surface by it, and a build bakes it to a normal map.
+A map named **normal** (a picture, usually from an imported model) is
+lit by as it is and wins over a relief. **rough**, **metal** and **ao**
+are the other maps a build reads into its material.
 
 ## Shade
 
@@ -498,9 +513,12 @@ the same four regions with the model turned under a **view**.
   collision list, riding the part; hand-made solids go in the file
   (`box`, `ball`, `rod`, convex `mesh`, with `part` and `layer`).
 - **For a 3D game** the model loads as it is: the Odin loader flattens
-  each part to triangles (`flatten_part`) and poses them through
-  `Y_UP * world_xf_3d`; `npx fart gltf model.fart` writes a `.glb` with
-  its animations for any other engine. Chains work in 3D with a `pole`
+  each part to triangles (`flatten_part`, or the compiled sidecar's
+  with `flatten_part_sidecar`) and poses them through `Y_UP *
+  world_xf_3d`; `resolve_textures_3d` reads the maps (a picture's
+  pixels ready to upload). It draws a skinned mesh rigid for now.
+  `npx fart gltf model.fart` writes a `.glb` with its animations,
+  skins, textures, normal and roughness maps for any other engine. Chains work in 3D with a `pole`
   in place of `bend`; the model screen does not show them yet.
 - **Import glTF…** (File menu, ⌘I) brings a model in from Blender or any
   tool that writes glTF: export a `.glb` (or a `.gltf` with its `.bin`
@@ -516,11 +534,13 @@ the same four regions with the model turned under a **view**.
   keyed them, morph targets as states. **Size** is a scale or a height
   in units (Blender works in metres; a prop here is tens of units, and
   coordinates keep three decimals, so scale a small model up).
-  **Merge into one part** drops the rig; **A shape per material** is
-  for readers older than format 1.8. A file of the same name is replaced
-  only after asking. Cameras and lights are not imported, nor are
-  textures here (the command line below brings them, as picture maps), and
-  a skin is flattened: each face rides the joint that holds most of it.
+  **Merge into one part** drops the rig (and a skin with it: each face
+  then rides one part); **A shape per material** is for readers older
+  than format 1.8. A skin comes across as a skin (format 1.9): its
+  points follow their joints by weight. A file of the same name is
+  replaced only after asking. Cameras and lights are not imported, nor
+  are textures here: the command line below brings them, as picture
+  maps with the model's own uvs.
   For a cage you mean to edit, export without applying subdivision and
   set **smooth** here. A model dropped on the window opens the same
   sheet, and the command line does the same:
@@ -658,6 +678,18 @@ the same four regions with the model turned under a **view**.
   already on when the mesh you were on is mirrored) the pipe has a twin
   across x that follows every change. A pipe is a sweep: it takes
   modifiers too.
+- **Skins (1.9).** A mesh with a `skin` gives at its joints: each corner
+  follows one to four parts by weight, so a sleeve stays on the chest
+  while its cuff turns with the arm, and the canvas draws it posed that
+  way in every state and clip. Uranus draws skins but has no weight
+  painting yet: they come from an imported glTF, a generator, or Ask
+  Claude. A skin marked `host` belongs to clothes drawn on another file
+  and is drawn rigid when the file is open alone.
+- **Rails (1.11).** A `rail` sweep carries a profile upright along a path
+  (a cliff face with its brow, a kerb, a skirting board), its corners
+  mitred and rounded by `round`. The canvas draws it and Project… and a
+  build use it like any sweep; it is written by a generator or by Ask
+  Claude, with no tool of its own yet.
 - **Compiled sidecars (1.8).** Wherever Uranus shows a model it is not
   editing (a tile in the browser, a model placed in a scene, the
   mannequin) it draws the model from `name.fart.glb`, a compiled copy

@@ -26,8 +26,11 @@ elsewhere (see **Images** below). Author new patterns as drawings.
   shape's space (or `xf`, six numbers, as a projection writes); in 3D
   `{"scale": s}` for **box mapping** (each face reads the two world axes
   across its normal, so planks line up across a wall with nothing
-  authored) or `{"uvs": [[[u, v], ...] per face]}` per corner. Balls and
-  rods box-map as the meshes they flatten to. A palette swap still
+  authored) or `{"uvs": [[[u, v], ...] per face]}` per corner, in
+  pattern units (0 to `cell` is one tile; v runs down). Explicit uvs
+  come from `fart unwrap` (1.10) or `fart import` (a glTF's own) and
+  ride through mods and `smooth`. Balls and rods box-map as the meshes
+  they flatten to. A palette swap still
   recolours the slot underneath.
 - Draw the map in the 2D editor (its cell is `[0, 0]` to `[w, h]` of the
   drawing's space; shapes crossing the edge wrap). `npx fart bake
@@ -36,8 +39,29 @@ elsewhere (see **Images** below). Author new patterns as drawings.
   face's mapping into the 2D file as an `xf`. Loaders give pattern
   coordinates per vertex (`triMesh(...).uvs`, `Tri_Mesh.uvs`; divide by
   the cell for 0..1) and `resolve_textures_3d` reads the maps' drawings;
-  the raylib example rasterises one with `draw_2d`. Sample textures:
-  `examples/cabin/textures`, `examples/space/textures`.
+  the raylib example rasterises one with `draw_2d` (an image map it
+  uploads as it is). Sample textures: `examples/cabin/textures`,
+  `examples/space/textures`; `spec/examples/valid/imaged.fart` wears
+  pictures.
+
+## Relief, soften, sheets (1.10)
+
+- `soften` on a map blurs it, in pattern units, wrapping at the cell: a
+  hard line in a height map becomes a ridge with a slope, a patch in a
+  colour map a stain.
+- `relief` on a texture gives its `height` map a size (value 1 stands
+  `relief` pattern units proud of 0) and renderers light by it. Draw the
+  height map on mid grey with lighter ridges and darker valleys,
+  `soften` about half a line's width.
+- `rough` (1 matte), `metal`, `ao` (1 open) are the other maps the tools
+  read. `fart bake --textures` writes `<texture>.normal.png` (from the
+  relief, or the `normal` map) and `<texture>.orm.png`; `fart gltf` puts
+  them in the material.
+- One sheet over a mesh: make the texture's `cell` the sheet and run
+  `fart unwrap file` (or `unwrapDoc`): each side an island, packed into
+  the cell. With `paint` under it, make the colour map `"mode": "mask"`
+  so each token keeps its colour. `references/curves-and-3d.md` has
+  the modelling side.
 
 ## Images (1.12)
 

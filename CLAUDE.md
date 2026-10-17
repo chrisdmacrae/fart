@@ -107,6 +107,16 @@ follow the spec, never the other way round.
   `state/textures.ts` for the 2D painter's patterns and WebGL; the Odin
   loader's `flatten_part` + `Y_UP` and `loaders/odin/examples/raylib_spin`
   are the 3D game path.
+- 1.8, 1.9, 1.11 in core: `paint`/`colors`, `shades`, `mods`
+  (`applyMods`, `builtOf`) and the `pipe` and `rail` (1.11) sweeps in
+  `solids.ts`; skins (1.9) in `space3.ts` (`shapesOf3Skinned`,
+  `shapesOf3Worn` for a host's), carried by `gltf.ts` and kept by the
+  import; the Odin loader reads `skin` but draws it rigid. The compiled
+  sidecar (`name.fart.glb`): `gltf.ts` (`buildSidecar`, `sidecarFresh`),
+  `fart build`, `loaders/odin/sidecar.odin`, the studio's
+  `state/sidecar.ts`. glTF import: core's `gltfImport.ts` +
+  `importCmd.ts` (`fart import`), the studio's `state/importGltf.ts`
+  (File › Import glTF…, which leaves textures to the CLI).
 - Relief (1.10): `soften` on a texture's map and `relief` on a texture.
   Core: `textures.ts` (`mapValues`, `normalRaster`, `ormRaster`,
   `bakeTexture`; `fart bake --textures` writes `.normal.png` and
