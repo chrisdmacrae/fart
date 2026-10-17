@@ -4,40 +4,74 @@
 // map into pixels, the same way in every reader, so a bake and a game
 // agree; and the 2D mapping's affine form is what fills and projections
 // use. Relief (1.10): a map may be softened, and a height map with a
-// relief bakes to a normal map.
+// relief bakes to a normal map. Images (1.12): a map may be a PNG,
+// decoded once, stretched over the cell and then read as a drawing is.
 
 import type { Doc, Doc3, Mapping2, Shape, StatePart, Texture, TextureMap, Token, Vec2 } from "./types.ts";
 import { applyPalette, colorOf, resolvePalettes, shadeColor, type RefReader } from "./palette.ts";
 import { drawList, shapeBounds, shapeDistance, shapesOf, xfApply, xfInvert, type Xf } from "./geometry.ts";
 import { boxUV, meshUVs } from "./solids.ts";
+import { fromPng } from "./png.ts";
 export { boxUV, meshUVs };
 
 /** A map, read: its drawing, the tokens to draw it with, and the pose to draw. */
 export interface ResolvedMap {
 	map: TextureMap;
+	/** the drawing; an image map's is empty */
 	doc: Doc;
 	tokens: Token[];
 	pose: string | readonly StatePart[] | undefined;
+	/** 1.12: an image map's pixels, straight RGBA as the PNG holds them */
+	image?: Raster;
 }
 export interface ResolvedTexture {
 	texture: Texture;
 	maps: Record<string, ResolvedMap>;
-	/** refs that could not be read */
+	/** refs (and images) that could not be read */
 	unresolved: string[];
 }
 
-/** Read a texture's maps through `read` (paths relative to the document that names them). */
-export async function resolveTexture(texture: Texture, read: RefReader, parse: (text: string) => Doc | null): Promise<ResolvedTexture> {
+/** Reads a file's bytes by relative path, for image maps (1.12); null when it cannot. */
+export type BytesReader = (relpath: string) => Promise<Uint8Array | null> | Uint8Array | null;
+
+const NO_DRAWING: Doc = { version: 1, parts: [] };
+
+/** A PNG's bytes as a raster, or null when they are not one this reader can read. */
+function decodeImage(bytes: Uint8Array | null): Raster | null {
+	if (!bytes) return null;
+	try {
+		return fromPng(bytes);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Read a texture's maps through `read` (paths relative to the document
+ * that names them); image maps through `readImage`, and without one they
+ * are unresolved.
+ */
+export async function resolveTexture(texture: Texture, read: RefReader, parse: (text: string) => Doc | null, readImage?: (relpath: string) => Promise<Raster | null> | Raster | null): Promise<ResolvedTexture> {
 	const out: ResolvedTexture = { texture, maps: {}, unresolved: [] };
 	for (const [name, map] of Object.entries(texture.maps)) {
-		const text = await read(map.ref);
+		if (map.image !== undefined) {
+			const image = readImage ? await readImage(map.image) : null;
+			if (!image) {
+				out.unresolved.push(map.image);
+				continue;
+			}
+			out.maps[name] = { map, doc: NO_DRAWING, tokens: [], pose: undefined, image };
+			continue;
+		}
+		const ref = map.ref ?? "";
+		const text = await read(ref);
 		const doc = text === null ? null : parse(text);
 		if (!doc || doc.space === "3d") {
-			out.unresolved.push(map.ref);
+			out.unresolved.push(ref);
 			continue;
 		}
 		// the drawing's own tokens, through its refs (relative to the drawing), then the map's palette laid over
-		const dir = map.ref.includes("/") ? map.ref.slice(0, map.ref.lastIndexOf("/") + 1) : "";
+		const dir = ref.includes("/") ? ref.slice(0, ref.lastIndexOf("/") + 1) : "";
 		let { tokens } = await resolvePalettes(doc, (rel) => read(dir + rel));
 		if (map.palette) {
 			const pt = await read(map.palette);
@@ -55,11 +89,13 @@ export async function resolveTexture(texture: Texture, read: RefReader, parse: (
  * Every texture of a document, resolved. A file many textures name (one
  * drawing whose states are a whole wardrobe) is read and parsed once and
  * its maps share the one document, so thousands of textures cost one
- * drawing, not thousands of copies of it.
+ * drawing, not thousands of copies of it. A picture is read and decoded
+ * once the same way.
  */
-export async function resolveTextures(doc: Doc | Doc3, read: RefReader, parse: (text: string) => Doc | null): Promise<Map<string, ResolvedTexture>> {
+export async function resolveTextures(doc: Doc | Doc3, read: RefReader, parse: (text: string) => Doc | null, readBytes?: BytesReader): Promise<Map<string, ResolvedTexture>> {
 	const texts = new Map<string, Promise<string | null>>();
 	const docs = new Map<string, Doc | null>();
+	const images = new Map<string, Promise<Raster | null>>();
 	const once: RefReader = (ref) => {
 		let got = texts.get(ref);
 		if (!got) texts.set(ref, (got = Promise.resolve(read(ref))));
@@ -69,9 +105,23 @@ export async function resolveTextures(doc: Doc | Doc3, read: RefReader, parse: (
 		if (!docs.has(text)) docs.set(text, parse(text));
 		return docs.get(text)!;
 	};
+	const imageOnce = readBytes
+		? (ref: string) => {
+				let got = images.get(ref);
+				if (!got) images.set(ref, (got = Promise.resolve(readBytes(ref)).then(decodeImage, () => null)));
+				return got;
+			}
+		: undefined;
 	const out = new Map<string, ResolvedTexture>();
-	for (const t of doc.textures ?? []) out.set(t.name, await resolveTexture(t, once, parseOnce));
+	for (const t of doc.textures ?? []) out.set(t.name, await resolveTexture(t, once, parseOnce, imageOnce));
 	return out;
+}
+
+/** The widest of a texture's pictures, in pixels per cell along x: what a bake keeps them at. 0 without pictures. */
+export function imagePx(res: ResolvedTexture): number {
+	let px = 0;
+	for (const m of Object.values(res.maps)) if (m.image) px = Math.max(px, m.image.width);
+	return px;
 }
 
 // ------------------------------------------------------------- mapping
@@ -132,6 +182,7 @@ const lum = (r: number, g: number, b: number) => (0.2126 * r + 0.7152 * g + 0.07
 function rasterFloats(texture: Texture, res: ResolvedMap, px: number, py: number): Float32Array {
 	const [cw, ch] = texture.cell;
 	const data = new Float32Array(px * py * 4);
+	if (res.image) sampleImage(res.image, data, px, py);
 	const items: { shape: Shape; xf: Xf; inv: Xf; scale: number; rgba: [number, number, number, number]; lo: Vec2; hi: Vec2 }[] = [];
 	for (const { part, xf, scale } of drawList(res.doc, res.pose)) {
 		for (const sh of shapesOf(res.doc, part)) {
@@ -149,10 +200,12 @@ function rasterFloats(texture: Texture, res: ResolvedMap, px: number, py: number
 			// the sample, in the drawing's space, wrapped into the cell
 			const wx = ((x + 0.5) / px) * cw;
 			const wy = ((y + 0.5) / py) * ch;
-			let r = 0;
-			let g = 0;
-			let b = 0;
-			let a = 0;
+			const o = (y * px + x) * 4;
+			// over a clear ground, or a picture's pixel (1.12)
+			let r = data[o];
+			let g = data[o + 1];
+			let b = data[o + 2];
+			let a = data[o + 3];
 			for (const it of items) {
 				// tiling: test the sample and its neighbours a cell away, so shapes crossing the edge wrap
 				let hit = false;
@@ -169,7 +222,6 @@ function rasterFloats(texture: Texture, res: ResolvedMap, px: number, py: number
 				b = it.rgba[2] * al + b * (1 - al);
 				a = al + a * (1 - al);
 			}
-			const o = (y * px + x) * 4;
 			data[o] = r;
 			data[o + 1] = g;
 			data[o + 2] = b;
@@ -182,6 +234,27 @@ function rasterFloats(texture: Texture, res: ResolvedMap, px: number, py: number
 		blurWrapped(data, px, py, 4, (soften * py) / ch, 1);
 	}
 	return data;
+}
+
+/**
+ * A picture (1.12) over one cell: it fills the cell whatever its size, and
+ * each sample takes the pixel it falls in, premultiplied as a drawing's
+ * floats are.
+ */
+function sampleImage(img: Raster, data: Float32Array, px: number, py: number) {
+	for (let y = 0; y < py; y++) {
+		const iy = Math.min(img.height - 1, Math.floor(((y + 0.5) / py) * img.height));
+		for (let x = 0; x < px; x++) {
+			const ix = Math.min(img.width - 1, Math.floor(((x + 0.5) / px) * img.width));
+			const i = (iy * img.width + ix) * 4;
+			const o = (y * px + x) * 4;
+			const a = img.data[i + 3] / 255;
+			data[o] = img.data[i] * a;
+			data[o + 1] = img.data[i + 1] * a;
+			data[o + 2] = img.data[i + 2] * a;
+			data[o + 3] = a;
+		}
+	}
 }
 
 /** A Gaussian of deviation `sigma` pixels along one axis, in place, wrapping at the edges (a tile stays a tile). */
@@ -276,12 +349,12 @@ export function ormRaster(px: number, py: number, maps: { ao?: Float32Array; rou
 	return { width: px, height: py, data };
 }
 
-/** What a build bakes of one texture (1.10): every map's pixels, the normal map its relief gives, and the packed scalar maps. */
+/** What a build bakes of one texture (1.10): every map's pixels, the normal map (1.12: its `normal` map, else the one its relief gives), and the packed scalar maps. */
 export interface BakedTexture {
 	width: number;
 	height: number;
 	maps: Record<string, Raster>;
-	/** from `height` and `relief`, when the texture has both */
+	/** the `normal` map (1.12), else from `height` and `relief` when the texture has both */
 	normal?: Raster;
 	/** when the texture has any of `ao`, `rough`, `metal` */
 	orm?: Raster;
@@ -290,12 +363,28 @@ export function bakeTexture(res: ResolvedTexture, px: number): BakedTexture {
 	const [cw, ch] = res.texture.cell;
 	const py = Math.max(1, Math.round((px * ch) / cw));
 	const out: BakedTexture = { width: px, height: py, maps: {} };
-	for (const [name, map] of Object.entries(res.maps)) out.maps[name] = rasterizeMap(res.texture, map, px, py);
+	for (const [name, map] of Object.entries(res.maps)) if (name !== "normal") out.maps[name] = rasterizeMap(res.texture, map, px, py);
 	const relief = res.texture.relief ?? 0;
-	if (res.maps.height && relief !== 0) out.normal = normalRaster(mapValues(res.texture, res.maps.height, px, py), px, py, res.texture.cell, relief);
+	// 1.12: a normal map as given wins over one the relief would make; its colours are directions, so straight and opaque
+	if (res.maps.normal) out.normal = opaque(rasterizeMap(res.texture, res.maps.normal, px, py));
+	else if (res.maps.height && relief !== 0) out.normal = normalRaster(mapValues(res.texture, res.maps.height, px, py), px, py, res.texture.cell, relief);
 	const scalar = (name: string) => (res.maps[name] ? mapValues(res.texture, res.maps[name], px, py) : undefined);
 	if (res.maps.ao || res.maps.rough || res.maps.metal) out.orm = ormRaster(px, py, { ao: scalar("ao"), rough: scalar("rough"), metal: scalar("metal") });
 	return out;
+}
+
+/** A premultiplied raster as straight colour with full alpha. */
+function opaque(r: Raster): Raster {
+	const data = new Uint8ClampedArray(r.data.length);
+	for (let i = 0; i < data.length; i += 4) {
+		const a = r.data[i + 3];
+		const k = a > 0 ? 255 / a : 0;
+		data[i] = r.data[i] * k;
+		data[i + 1] = r.data[i + 1] * k;
+		data[i + 2] = r.data[i + 2] * k;
+		data[i + 3] = 255;
+	}
+	return { width: r.width, height: r.height, data };
 }
 
 /** A raster read as the scalar the format defines: luminance times alpha, per pixel, 0..1. */

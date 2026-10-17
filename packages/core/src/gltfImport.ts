@@ -8,9 +8,11 @@
 //
 // What glTF has and the format does not is folded down with a warning:
 // triangles pair back into quads, split vertices weld, a skin binds each
-// face to one joint, a texture leaves its factor behind.
+// face to one joint, a texture leaves its factor behind. Unless the
+// caller hands the textures over (1.12: image maps): then the materials
+// that wear them carry their uvs, corner by corner, into `mapping.uvs`.
 
-import type { Clip3, ClipKey3, Doc3, MeshShape, Morph, Part3, State3, StatePart3, Token, Vec3 } from "./types.ts";
+import type { Clip3, ClipKey3, Doc3, MeshShape, Morph, Part3, State3, StatePart3, Texture, Token, Vec2, Vec3 } from "./types.ts";
 import { Y_UP } from "./solids.ts";
 import { XF3_ID, bakeTris3, matToEuler, quatSlerp, quatToMat, xf3Apply, xf3Det, xf3Invert, xf3Mul, type Quat, type Xf3 } from "./space3.ts";
 
@@ -41,6 +43,13 @@ export interface GltfImportOptions {
 	name?: string;
 	/** a .gltf's external buffers by the uri it names them with (see gltfBufferUris) */
 	buffers?: Record<string, Uint8Array>;
+	/**
+	 * 1.12: textures the model wears, each added to the document and worn by
+	 * the materials it names (every material, when absent), with explicit
+	 * uvs from TEXCOORD_0 in the texture's pattern coordinates. A shape wears
+	 * one texture, so materials that wear different ones are cut apart.
+	 */
+	textures?: { texture: Texture; materials?: number[] }[];
 }
 
 /** What an import made, for a summary line. */
@@ -152,6 +161,88 @@ export function gltfBufferUris(source: Source): string[] {
 	return out;
 }
 
+/** One of a glTF's pictures: its bytes when the file holds them (a buffer view, a data uri, or a file passed in `buffers`), else the uri it names. */
+export interface GltfImage {
+	name: string;
+	mimeType: string;
+	bytes: Uint8Array | null;
+	/** the file it names, when it is one beside the glTF */
+	uri?: string;
+}
+/** The pictures a material wears, by index into `images`, in glTF's slots. */
+export interface GltfMaterialImages {
+	material: number;
+	name: string;
+	color?: number;
+	normal?: number;
+	/** glTF packs roughness in green and metalness in blue */
+	metallicRoughness?: number;
+	/** occlusion in red */
+	occlusion?: number;
+	emissive?: number;
+}
+
+/**
+ * The pictures a glTF holds and which material wears each (1.12: a .fart
+ * keeps them as image maps). Read before importGltf, to hand it the
+ * textures; an external picture is named by its uri and found through
+ * `buffers` as a buffer is.
+ */
+export function gltfImages(source: Source, buffers: Record<string, Uint8Array> = {}): { images: GltfImage[]; materials: GltfMaterialImages[] } {
+	const { json, bin } = container(source);
+	const bufferOf = (i: number): Uint8Array | null => {
+		const b = json?.buffers?.[i];
+		if (!b) return null;
+		if (typeof b.uri !== "string") return i === 0 ? bin : null;
+		return dataUri(b.uri) ?? buffers[b.uri] ?? buffers[safeDecode(b.uri)] ?? null;
+	};
+	const sniff = (bytes: Uint8Array | null, uri?: string): string => {
+		if (bytes && bytes[0] === 0x89 && bytes[1] === 0x50) return "image/png";
+		if (bytes && bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+		const ext = (uri ?? "").toLowerCase().split("?")[0].split(".").pop();
+		return ext === "png" ? "image/png" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : ext === "ktx2" ? "image/ktx2" : "application/octet-stream";
+	};
+	const images: GltfImage[] = (Array.isArray(json?.images) ? json.images : []).map((im: J, i: number): GltfImage => {
+		const name = snakeName(im?.name ?? (typeof im?.uri === "string" && !im.uri.startsWith("data:") ? im.uri.replace(/\.[^.]*$/, "") : undefined), `image_${i + 1}`);
+		let bytes: Uint8Array | null = null;
+		let uri: string | undefined;
+		if (typeof im?.bufferView === "number") {
+			const v = json.bufferViews?.[im.bufferView];
+			const buf = v ? bufferOf(v.buffer ?? 0) : null;
+			if (buf && v) bytes = buf.subarray(v.byteOffset ?? 0, (v.byteOffset ?? 0) + (v.byteLength ?? 0));
+		} else if (typeof im?.uri === "string") {
+			bytes = dataUri(im.uri);
+			if (!bytes) {
+				uri = im.uri;
+				bytes = buffers[im.uri] ?? buffers[safeDecode(im.uri)] ?? null;
+			}
+		}
+		return { name, mimeType: typeof im?.mimeType === "string" ? im.mimeType : sniff(bytes, im?.uri), bytes, uri };
+	});
+	// a texture's picture: its source, or what an extension (webp, basisu) names instead
+	const imageOf = (ref: J): number | undefined => {
+		const t = typeof ref?.index === "number" ? json.textures?.[ref.index] : undefined;
+		if (!t) return undefined;
+		const src = typeof t.source === "number" ? t.source : Object.values(t.extensions ?? {}).map((e) => (e as J)?.source).find((x) => typeof x === "number");
+		return typeof src === "number" && images[src] ? src : undefined;
+	};
+	const materials: GltfMaterialImages[] = [];
+	(Array.isArray(json?.materials) ? json.materials : []).forEach((m: J, i: number) => {
+		const e: GltfMaterialImages = { material: i, name: snakeName(m?.name, `material_${i + 1}`) };
+		const set = (k: "color" | "normal" | "metallicRoughness" | "occlusion" | "emissive", ref: J) => {
+			const at = imageOf(ref);
+			if (at !== undefined) e[k] = at;
+		};
+		set("color", m?.pbrMetallicRoughness?.baseColorTexture);
+		set("normal", m?.normalTexture);
+		set("metallicRoughness", m?.pbrMetallicRoughness?.metallicRoughnessTexture);
+		set("occlusion", m?.occlusionTexture);
+		set("emissive", m?.emissiveTexture);
+		if (Object.keys(e).length > 2) materials.push(e);
+	});
+	return { images, materials };
+}
+
 /** lowercase snake_case: what the format's names look like */
 export function snakeName(s: unknown, fallback: string): string {
 	const t = typeof s === "string" ? s : "";
@@ -215,6 +306,8 @@ interface Soup {
 	nor: number[];
 	/** a shade per vertex, 1 where a primitive carried no colours */
 	lum: number[];
+	/** TEXCOORD_0 per vertex, [u, v] with v down the image as glTF has it; NaN where a primitive carried none */
+	uv: number[];
 	/** 1.9: what each vertex follows, as [joint's node, weight, ...]; absent on a mesh with no skin (or one flattened) */
 	skin?: number[][];
 	hasNormals: boolean;
@@ -250,6 +343,8 @@ interface BuildOptions {
 	shades: boolean;
 	split: boolean;
 	token: (material: number) => string;
+	/** 1.12: the texture a material wears, if any */
+	texture: (material: number) => Texture | undefined;
 	/** 1.9: a joint node's part, and the part the job's faces are given to */
 	joint: (node: number) => string | undefined;
 	owner: string;
@@ -270,7 +365,9 @@ const MAX_POINTS = 65535;
 /** One job as meshes: welded, paired into quads, smooth where the source was, split by material or by size as asked. */
 function buildShapes(job: Job, o: BuildOptions): Built[] {
 	const out: Built[] = [];
-	if (o.split) {
+	// a shape wears one texture: materials that wear different ones are different shapes
+	const wearing = new Set(job.mats.map((m) => o.texture(m)));
+	if (o.split || wearing.size > 1) {
 		const order: number[] = [];
 		for (const m of job.mats) if (!order.includes(m)) order.push(m);
 		for (const m of order) {
@@ -374,6 +471,11 @@ function buildOne(job: Job, o: BuildOptions): Built[] {
 	}
 	const normalAt = (slot: number): Vec3 => [soup.nor[src[slot] * 3], soup.nor[src[slot] * 3 + 1], soup.nor[src[slot] * 3 + 2]];
 	const next = (slot: number) => slot - (slot % 3) + (((slot % 3) + 1) % 3);
+	// 1.12: the texture this shape wears, and whether its corners carry uvs to wear it by
+	const texture = o.texture(mat[0]);
+	const withUVs = !!texture && src.some((v) => !Number.isNaN(soup.uv[v * 2]));
+	if (texture && !withUVs) o.warn(`${o.label}: wears ${texture.name} but has no TEXCOORD_0; it is box mapped`);
+	const sameUV = (a: number, b: number) => Math.abs(soup.uv[src[a] * 2] - soup.uv[src[b] * 2]) < 1e-6 && Math.abs(soup.uv[src[a] * 2 + 1] - soup.uv[src[b] * 2 + 1]) < 1e-6;
 
 	// smooth or sharp, edge by edge: smooth where both triangles carry the same normal at each end
 	// (flat shading gives each face its own, so across a fold they differ by the fold itself)
@@ -400,14 +502,22 @@ function buildOne(job: Job, o: BuildOptions): Built[] {
 	// quads: the best pairs first, each triangle used once
 	const pair = new Int32Array(n).fill(-1);
 	const quadOf = new Map<number, number[]>();
+	/** each quad's corners as the slots they came from, for their uvs */
+	const quadSlots = new Map<number, number[]>();
 	if (o.quads) {
-		const cands: { a: number; b: number; key: number; score: number; quad: number[] }[] = [];
+		const cands: { a: number; b: number; key: number; score: number; quad: number[]; corners: number[] }[] = [];
 		for (const [key, slots] of edges) {
 			if (slots.length !== 2) continue;
 			const [s, u] = slots;
 			const ta = Math.floor(s / 3);
 			const tb = Math.floor(u / 3);
 			if (mat[ta] !== mat[tb] || tri[s] === tri[u]) continue;
+			// a seam in the uvs along the diagonal: the two halves are mapped apart, so they stay two faces
+			if (withUVs) {
+				const uA = tri[u] === tri[s] ? u : next(u);
+				const uB = tri[u] === tri[s] ? next(u) : u;
+				if (!sameUV(s, uA) || !sameUV(next(s), uB)) continue;
+			}
 			// a fold the source lights as one surface does not show: it may bend further and still be a quad
 			const bend = dot(normal[ta], normal[tb]);
 			if (bend < (smoothKeys.has(key) ? o.smoothQuadCos : o.quadCos)) continue;
@@ -418,6 +528,7 @@ function buildOne(job: Job, o: BuildOptions): Built[] {
 			const d = tri[next(next(u))];
 			if (d === a || d === b || d === c) continue;
 			const quad = [a, d, b, c];
+			const corners = [s, next(next(u)), next(s), next(next(s))];
 			const nq = unit([normal[ta][0] + normal[tb][0], normal[ta][1] + normal[tb][1], normal[ta][2] + normal[tb][2]]);
 			let worst = 0;
 			let convex = true;
@@ -431,7 +542,7 @@ function buildOne(job: Job, o: BuildOptions): Built[] {
 			}
 			if (!convex) continue;
 			// squareness first, flatness after, then the pair the exporter most likely cut
-			cands.push({ a: ta, b: tb, key, score: worst + (1 - bend) + (Math.abs(ta - tb) === 1 ? 0 : 1e-6), quad });
+			cands.push({ a: ta, b: tb, key, score: worst + (1 - bend) + (Math.abs(ta - tb) === 1 ? 0 : 1e-6), quad, corners });
 		}
 		cands.sort((x, y) => x.score - y.score || x.a - y.a || x.b - y.b);
 		for (const c of cands) {
@@ -439,15 +550,30 @@ function buildOne(job: Job, o: BuildOptions): Built[] {
 			pair[c.a] = c.b;
 			pair[c.b] = c.a;
 			quadOf.set(Math.min(c.a, c.b), c.quad);
+			quadSlots.set(Math.min(c.a, c.b), c.corners);
 			fold.delete(c.key);
 		}
 	}
 	const faces: number[][] = [];
 	const faceMat: number[] = [];
+	const faceUV: Vec2[][] = [];
+	// pattern coordinates: glTF's 0..1 over the cell, v already down; precise to a hundred-thousandth of the cell
+	const [cw, ch] = texture?.cell ?? [1, 1];
+	const places = Math.max(0, Math.ceil(Math.log10(1e5 / Math.max(cw, ch, 1e-9))));
+	const ru = (x: number) => {
+		const v = Math.round(x * 10 ** places) / 10 ** places;
+		return v === 0 ? 0 : v;
+	};
+	const uvAt = (slot: number): Vec2 => {
+		const u = soup.uv[src[slot] * 2];
+		const v = soup.uv[src[slot] * 2 + 1];
+		return Number.isNaN(u) ? [0, 0] : [ru(u * cw), ru(v * ch)];
+	};
 	for (let t = 0; t < n; t++) {
 		if (pair[t] >= 0 && pair[t] < t) continue;
 		faces.push(pair[t] >= 0 ? quadOf.get(t)! : [tri[t * 3], tri[t * 3 + 1], tri[t * 3 + 2]]);
 		faceMat.push(mat[t]);
+		if (withUVs) faceUV.push((pair[t] >= 0 ? quadSlots.get(t)! : [t * 3, t * 3 + 1, t * 3 + 2]).map(uvAt));
 	}
 
 	// what is left between the faces says whether the shape is smooth: folds lit as one surface against folds that show
@@ -570,6 +696,11 @@ function buildOne(job: Job, o: BuildOptions): Built[] {
 		if (order.length > 1) shape.paint = chunk.map((f) => order.indexOf(faceMat[f]));
 		if (useShades) shape.shades = shd;
 		if (useSkin) shape.skin = { joints, weights };
+		if (texture) {
+			shape.texture = texture.name;
+			// without uvs the texture is box mapped (1.5)
+			if (withUVs) shape.mapping = { uvs: chunk.map((f) => faceUV[f]) };
+		}
 		built.push({ shape, targets: tps, soup, quads: chunk.filter((f) => faces[f].length === 4).length });
 	}
 	return built;
@@ -809,7 +940,7 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 		// normals turn with the inverse transpose
 		const Dinv = xf3Invert(D);
 		const turnNormal = (M: Xf3, nx: number, ny: number, nz: number): Vec3 => unit([M[0] * nx + M[3] * ny + M[6] * nz, M[1] * nx + M[4] * ny + M[7] * nz, M[2] * nx + M[5] * ny + M[8] * nz]);
-		const soup: Soup = { pos: [], nor: [], lum: [], hasNormals: false, hasColors: false, targets: [], targetNames: [], node: ni };
+		const soup: Soup = { pos: [], nor: [], lum: [], uv: [], hasNormals: false, hasColors: false, targets: [], targetNames: [], node: ni };
 		if (skinned && keepSkins) soup.skin = [];
 		const targetCount = Math.max(0, ...(mesh.primitives ?? []).map((p: J) => (Array.isArray(p?.targets) ? p.targets.length : 0)));
 		for (let t = 0; t < targetCount; t++) {
@@ -837,6 +968,7 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 			const P = accessor(prim.attributes.POSITION);
 			const N = typeof prim.attributes.NORMAL === "number" ? accessor(prim.attributes.NORMAL) : null;
 			const C = options.shades !== false && typeof prim.attributes.COLOR_0 === "number" ? accessor(prim.attributes.COLOR_0) : null;
+			const UV = options.textures?.length && typeof prim.attributes.TEXCOORD_0 === "number" ? accessor(prim.attributes.TEXCOORD_0) : null;
 			const JN = skinned && typeof prim.attributes.JOINTS_0 === "number" ? accessor(prim.attributes.JOINTS_0) : null;
 			const WT = skinned && typeof prim.attributes.WEIGHTS_0 === "number" ? accessor(prim.attributes.WEIGHTS_0) : null;
 			const T: ({ data: number[] } | null)[] = [];
@@ -891,6 +1023,8 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 					const lin = 0.2126 * C.data[v * C.n] + 0.7152 * C.data[v * C.n + 1] + 0.0722 * C.data[v * C.n + 2];
 					soup.lum.push(srgb(lin));
 				} else soup.lum.push(1);
+				if (UV) soup.uv.push(UV.data[v * UV.n], UV.data[v * UV.n + 1]);
+				else soup.uv.push(NaN, NaN);
 				for (let t = 0; t < targetCount; t++) {
 					const d = T[t]?.data;
 					const tq = d ? xf3Apply(M, [p[0] + d[v * 3], p[1] + d[v * 3 + 1], p[2] + d[v * 3 + 2]]) : q;
@@ -951,6 +1085,9 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 		for (const t of s.targets) for (let i = 0; i < t.length; i++) t[i] *= k;
 	}
 
+	// 1.12: the texture each material wears, as the caller says
+	const textureOf = (mi: number): Texture | undefined => options.textures?.find((t) => !t.materials || t.materials.includes(mi))?.texture;
+
 	// colour: a token per material that something wears
 	const tokenName = namer();
 	const tokenOf = new Map<number, string>();
@@ -980,7 +1117,7 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 		const token: Token = { name, rgb: [Math.round(srgb(f[0]) * 255), Math.round(srgb(f[1]) * 255), Math.round(srgb(f[2]) * 255), Math.round(Math.max(0, Math.min(1, f[3])) * 255)] };
 		if (glow > 0) token.emissive = r3(glow);
 		palette.push(token);
-		if (pbr.baseColorTexture && !texturesWarned.has(mi)) {
+		if (pbr.baseColorTexture && !textureOf(mi) && !texturesWarned.has(mi)) {
 			texturesWarned.add(mi);
 			warn(`material ${m?.name ? `"${m.name}"` : mi + 1} has a base colour texture, which is not imported; its colour factor is used`);
 		}
@@ -1030,6 +1167,7 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 			shades: options.shades !== false,
 			split: options.splitMaterials === true,
 			token: (m) => tokenOf.get(m)!,
+			texture: textureOf,
 			joint: (n) => nameOf.get(n),
 			owner: part.name,
 			warn,
@@ -1185,6 +1323,10 @@ export function importGltf(source: Source, options: GltfImportOptions = {}): Glt
 	const sceneName = scenes[sceneIndex]?.name;
 	const doc: Doc3 = { version: 1, space: "3d", name: options.name ?? snakeName(sceneName, "model"), palette, parts, states };
 	if (clips.length) doc.clips = clips;
+	// 1.12: the textures something wears
+	const worn = new Set(parts.flatMap((p) => (p.shapes ?? []).map((sh) => (sh as MeshShape).texture)));
+	const textures = (options.textures ?? []).map((t) => t.texture).filter((t) => worn.has(t.name));
+	if (textures.length) doc.textures = textures;
 	if (options.tris !== false) bakeTris3(doc);
 	if (!parts.some((p) => p.shapes?.length)) warn("nothing to draw: the file has no triangles in its scene");
 

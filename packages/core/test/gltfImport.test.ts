@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { box, cornerNormals, GltfError, gltfBufferUris, importGltf, sampleClip3, snakeName, toGlb, validate, worldTransforms3, xf3Apply, type Doc3, type MeshShape, type Vec3 } from "../src/index.ts";
+import { box, cornerNormals, fromPng, GltfError, gltfBufferUris, gltfImages, importGltf, toPng, sampleClip3, snakeName, toGlb, validate, worldTransforms3, xf3Apply, type Doc3, type MeshShape, type Vec3 } from "../src/index.ts";
 
 const near = (a: number, b: number, eps = 2e-3) => assert.ok(Math.abs(a - b) < eps, `${a} vs ${b}`);
 const nearV = (a: readonly number[], b: readonly number[], eps = 2e-3) => a.forEach((x, i) => near(x, b[i], eps));
@@ -290,6 +290,110 @@ test("a triangulated grid comes back as its quads, along the diagonals the expor
 	const bent = mesh(importGltf(gridScene(4, 0.5).glb()).doc, 0);
 	assert.ok(bent.faces.some((f) => f.length === 3));
 	assert.equal(mesh(importGltf(gridScene(4, 0.5).glb(), { quadAngle: 90 }).doc, 0).faces.length, 16);
+});
+
+// ---------------------------------------------------------------- 1.12: textures
+
+/** A cube whose faces each take a strip of the sheet, a picture in the .glb, and a second material on the last face. */
+function texturedCube(seam = false) {
+	const b = builder();
+	const c = cubeData();
+	const uv: number[] = [];
+	for (let f = 0; f < 6; f++) for (const [su, sv] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) uv.push(f / 6 + ((su + 1) / 2) * 0.1, ((sv + 1) / 2) * 0.5);
+	const idx = [...c.idx];
+	const pos = [...c.pos];
+	const nor = [...c.nor];
+	if (seam) {
+		// the first face's second triangle on corners of its own, mapped elsewhere: a seam along the diagonal
+		const base = pos.length / 3;
+		for (const k of [0, 2, 3]) {
+			pos.push(...c.pos.slice(k * 3, k * 3 + 3));
+			nor.push(...c.nor.slice(k * 3, k * 3 + 3));
+			uv.push(uv[k * 2], uv[k * 2 + 1] + 0.5);
+		}
+		idx.splice(3, 3, base, base + 1, base + 2);
+	}
+	const png = toPng({ width: 4, height: 2, data: new Uint8ClampedArray(32).fill(200) });
+	const bytes = Array.from(png);
+	const imgView = b.json.bufferViews.length;
+	b.acc(bytes, "SCALAR", 5121);
+	b.json.accessors.pop();
+	b.json.images = [{ name: "Bark", bufferView: imgView, mimeType: "image/png" }];
+	b.json.textures = [{ source: 0 }];
+	b.json.materials = [{ name: "Wood", pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }, { name: "Paint" }];
+	const P = b.acc(pos, "VEC3");
+	const N = b.acc(nor, "VEC3");
+	const T = b.acc(uv, "VEC2");
+	b.json.meshes = [{ name: "Cube", primitives: [
+		{ attributes: { POSITION: P, NORMAL: N, TEXCOORD_0: T }, indices: b.acc(idx.slice(0, 30), "SCALAR", 5123), material: 0 },
+		{ attributes: { POSITION: P, NORMAL: N, TEXCOORD_0: T }, indices: b.acc(idx.slice(30), "SCALAR", 5123), material: 1 },
+	] }];
+	b.json.nodes = [{ name: "Cube", mesh: 0 }];
+	b.json.scenes = [{ nodes: [0] }];
+	return { b, uv };
+}
+
+test("textures (1.12): the materials that wear one carry their uvs corner by corner, scaled to the cell; the rest are cut apart", () => {
+	const { b } = texturedCube();
+	const glb = b.glb();
+	// the pictures a glTF holds, by the material that wears them
+	const { images, materials } = gltfImages(glb);
+	assert.equal(images.length, 1);
+	assert.equal(images[0].name, "bark");
+	assert.equal(images[0].mimeType, "image/png");
+	assert.deepEqual(fromPng(images[0].bytes!).width, 4);
+	assert.deepEqual(materials, [{ material: 0, name: "wood", color: 0 }]);
+
+	// without textures: the factor, and a word
+	const plain = importGltf(glb);
+	assert.ok(plain.warnings.some((w) => w.includes("base colour texture")));
+	assert.equal(plain.doc.textures, undefined);
+
+	const texture = { name: "bark", cell: [60, 20] as [number, number], maps: { color: { image: "bark.png" } } };
+	const { doc, warnings } = importGltf(glb, { textures: [{ texture, materials: [0] }] });
+	assert.ok(!warnings.some((w) => w.includes("base colour texture")));
+	ok(doc);
+	assert.deepEqual(doc.textures, [texture]);
+	const shapes = doc.parts![0].shapes as MeshShape[];
+	assert.equal(shapes.length, 2);
+	const [wood, paint] = shapes;
+	assert.equal(wood.texture, "bark");
+	assert.equal(paint.texture, undefined);
+	assert.equal(paint.faces.length, 1);
+	assert.equal(wood.faces.length, 5);
+	assert.ok(wood.faces.every((f) => f.length === 4));
+	// each corner's uv is its source corner's: the face's strip, by where the corner sits on the face
+	const uvs = wood.mapping!.uvs!;
+	wood.faces.forEach((f, fi) => {
+		// glTF's frame is the document's turned half about x
+		const g = f.map((i) => [wood.points[i][0], -wood.points[i][1], -wood.points[i][2]]);
+		const centre = [0, 1, 2].map((k) => g.reduce((t, p) => t + p[k], 0) / 4);
+		const axis = centre.map((x) => Math.round(x));
+		const faceIndex = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].findIndex((n) => n.every((x, k) => x === axis[k]));
+		const frames: [Vec3, Vec3][] = [[[0, 1, 0], [0, 0, 1]], [[0, 0, 1], [0, 1, 0]], [[0, 0, 1], [1, 0, 0]], [[1, 0, 0], [0, 0, 1]], [[1, 0, 0], [0, 1, 0]], [[0, 1, 0], [1, 0, 0]]];
+		const [u, v] = frames[faceIndex];
+		f.forEach((_, ci) => {
+			const su = g[ci][0] * u[0] + g[ci][1] * u[1] + g[ci][2] * u[2];
+			const sv = g[ci][0] * v[0] + g[ci][1] * v[1] + g[ci][2] * v[2];
+			nearV(uvs[fi][ci], [(faceIndex / 6 + ((su + 1) / 2) * 0.1) * 60, ((sv + 1) / 2) * 0.5 * 20], 1e-3);
+		});
+	});
+	// no list of materials: every material wears it, so one shape again
+	const all = importGltf(glb, { textures: [{ texture }] }).doc;
+	ok(all);
+	assert.equal(all.parts![0].shapes!.length, 1);
+	assert.equal((all.parts![0].shapes![0] as MeshShape).mapping!.uvs!.length, 6);
+});
+
+test("textures (1.12): a seam along a face's diagonal keeps its two triangles apart", () => {
+	const texture = { name: "bark", cell: [1, 1] as [number, number], maps: { color: { image: "bark.png" } } };
+	const seamed = importGltf(texturedCube(true).b.glb(), { textures: [{ texture }] }).doc;
+	ok(seamed);
+	const m = seamed.parts![0].shapes![0] as MeshShape;
+	assert.equal(m.faces.filter((f) => f.length === 3).length, 2);
+	assert.equal(m.faces.length, 7);
+	// without textures the uvs say nothing and the face is a quad
+	assert.equal((importGltf(texturedCube(true).b.glb()).doc.parts![0].shapes![0] as MeshShape).faces.length, 6);
 });
 
 test("vertices split for normals weld; a tolerance decides how near is the same", () => {

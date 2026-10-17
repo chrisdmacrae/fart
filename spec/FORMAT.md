@@ -1,4 +1,4 @@
-# Fast Art Format (.fart) — v1.5
+# Fast Art Format (.fart) — v1.12
 
 JSON-backed vector art for games. The format is the contract: any editor
 that writes it and any engine that reads it agree through this document
@@ -429,7 +429,8 @@ authoring-side first (model once, project to any 2D view; see
 ## Textures (1.5)
 
 A texture is a set of **maps**, and every map is a drawing: a 2D Fast
-Art file tiled over a cell. There are no bitmaps in the format. The
+Art file tiled over a cell (since 1.12 a map may instead be a PNG; see
+**Images**). The
 colour map is what a reader paints; every other map (`height`, `glow`,
 `rough`, whatever a game invents) is a scalar field the format carries
 and the engine reads, the way it carries `layer` on collision.
@@ -1146,6 +1147,57 @@ path, a rail's keeps one way up wherever the path goes.
 - A 1.10 validator refuses `op: "rail"` at the schema stage. A loader
   that does not know the op draws the shape's `bake` when it has one.
 
+## Images (1.12)
+
+A drawing is the format's own way to say a pattern, and the right one
+for anything authored in it. A model brought in from elsewhere arrives
+with its textures painted: bark, rust, a face, a baked normal map. Those
+are pictures, and tracing them into drawings loses what they are. So a
+map may name a picture instead of a drawing:
+
+```json
+"textures": [
+  {"name": "stick", "cell": [512, 512], "maps": {
+    "color":  {"image": "textures/stick.color.png"},
+    "normal": {"image": "textures/stick.normal.png"},
+    "mask":   {"image": "textures/stick.mask.png"}
+  }}
+]
+```
+
+- `image` is a relative path (as `ref` is) to a **PNG** file. A map has
+  exactly one of `ref` and `image`; an image map has no `palette` and no
+  `state`, which are a drawing's (`schema`). An absolute `image` is
+  `path`. An image that cannot be read is the `unresolved` warning, as a
+  ref is, and the shape is drawn as if the map were absent.
+- **The picture is the cell.** Its pixels stretch over the tile, from
+  `[0, 0]` to `cell`, whatever their count: pixel column i of an image W
+  wide covers pattern x from `i × w / W` to `(i + 1) × w / W`, row j
+  likewise along y, with row 0 at y = 0 (the top of the picture, as
+  pattern v runs down). It repeats with the cell's period as a drawing
+  does. The reference samples the pixel a point falls in; a renderer
+  may filter (bilinear, mipmaps) and conforms. A cell the size of the
+  picture in pixels makes pattern coordinates pixel coordinates.
+- Its pixels are read as 8-bit sRGB with alpha, whatever the PNG's own
+  colour type and depth (grey widens to RGB, a palette is looked up,
+  16 bits keep their high byte, no alpha is opaque). From there the map
+  is read exactly as a drawing's: `mode` `paint` lays the picture over
+  the shape's token by its alpha, `mask` multiplies the token by its
+  value, a scalar is luminance times alpha, and `soften` blurs it.
+- **The map named `normal`** is read by the reference tools as a
+  tangent-space normal map in the convention `fart bake` writes (1.10):
+  `n × 0.5 + 0.5`, red along +u, green **up the image**, blue out, in
+  each face's pattern frame. A renderer lights by it; a texture with
+  both a `normal` map and a relief lights by the `normal` map, and the
+  bake writes `<texture>.normal.png` from it. Any map may be a picture
+  or a drawing, `normal` included.
+- A palette swap does not reach into a picture: a `paint` picture
+  covers the token where it is opaque, so a recolourable model wears its
+  colour map as `mask` over a light token, or keeps its pictures for
+  the maps that are not colour.
+- A 1.11 reader refuses an image map at the schema stage (a map without
+  `ref`). A lenient loader draws the shape's token flat.
+
 ## Color at runtime
 
 Tokens are the recolor surface: a file's palette is its set of colour
@@ -1321,6 +1373,10 @@ the corpus only requires it to load every valid file and refuse those two.
   carried upright along a path, its corners mitred and rounded. A file
   without it is a 1.10 file; a 1.10 reader refuses a rail at the schema
   stage (a lenient loader draws nothing for it, or its bake).
+- 1.12 added `image` on a texture's maps: a map that is a PNG, stretched
+  over the cell, and the map name `normal` the reference tools light by.
+  A file without them is a 1.11 file; a 1.11 reader refuses an image map
+  at the schema stage (a lenient loader draws the shape flat).
 
 ## Reserved for later
 

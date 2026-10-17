@@ -98,7 +98,15 @@ for (const c of manifest.cases) {
 					return null;
 				}
 			};
-			for (const t of (await resolveTextures(first.doc, read, (x) => parseDoc(x).doc)).values()) unresolvedRefs.push(...t.unresolved);
+			// pictures (1.12) as bytes, beside the file
+			const bytes = async (rel: string) => {
+				try {
+					return new Uint8Array(await readFile(resolve(dirname(file), rel)));
+				} catch {
+					return null;
+				}
+			};
+			for (const t of (await resolveTextures(first.doc, read, (x) => parseDoc(x).doc, bytes)).values()) unresolvedRefs.push(...t.unresolved);
 		}
 		const { doc, report } = parseDoc(text, { refTokens, unresolvedRefs });
 		assert.equal(report.ok, c.valid, JSON.stringify(report.errors));

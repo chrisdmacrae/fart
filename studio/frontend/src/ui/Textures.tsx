@@ -135,34 +135,42 @@ export function TexturesPanel({ api }: { api: TexturesApi }) {
 								<div
 									class="ed-sub"
 									tabIndex={several ? 0 : undefined}
-									title={`The ${name} map: a drawing of the project, tiled`}
+									title={`The ${name} map: ${m.image !== undefined ? "a picture" : "a drawing"} of the project, tiled`}
 									onKeyDown={headKeys(null, several ? () => api.removeMap(i, name) : null)}
 									onContextMenu={(e) => menuAt(e, [{ label: "Delete map", danger: true, disabled: !several, run: () => api.removeMap(i, name) }])}
 								>
 									{name}
 								</div>
-								<Property label="Drawing">
-									<Select
-										value={m.ref}
-										title="The drawing"
-										options={[...(refs.some((r) => r.ref === m.ref) ? [] : [{ value: m.ref, label: m.ref }]), ...refs.map((r) => ({ value: r.ref, label: r.label }))]}
-										onChange={(v) => api.map(i, name, { ref: v })}
-									/>
-									<Button title="Open the drawing" onClick={() => void openDoc(joinRel(dirname(api.rel), m.ref))}>
-										Open
-									</Button>
-								</Property>
-								<Property label="Palette">
-									<Select
-										value={m.palette ?? ""}
-										title="A palette laid over the drawing's colours: the same drawing as another map"
-										options={[{ value: "", label: "The drawing's own" }, ...(m.palette && !pals.some((p) => p.ref === m.palette) ? [{ value: m.palette, label: m.palette }] : []), ...pals.map((p) => ({ value: p.ref, label: p.label }))]}
-										onChange={(v) => api.map(i, name, { palette: v })}
-									/>
-								</Property>
-								<Property label="State" title="Which of the drawing's states; empty for its first">
-									<TextField value={m.state ?? ""} placeholder="first" onChange={(v) => api.map(i, name, { state: v })} />
-								</Property>
+								{m.image !== undefined ? (
+									<Property label="Picture" title="A PNG of the project, relative to this file, stretched over the cell (1.12)">
+										<TextField value={m.image} placeholder="textures/name.png" onChange={(v) => api.map(i, name, { image: v })} />
+									</Property>
+								) : (
+									<>
+									<Property label="Drawing">
+										<Select
+											value={m.ref ?? ""}
+											title="The drawing"
+											options={[...(refs.some((r) => r.ref === m.ref) ? [] : [{ value: m.ref ?? "", label: m.ref ?? "" }]), ...refs.map((r) => ({ value: r.ref, label: r.label }))]}
+											onChange={(v) => api.map(i, name, { ref: v })}
+										/>
+										<Button title="Open the drawing" onClick={() => void openDoc(joinRel(dirname(api.rel), m.ref ?? ""))}>
+											Open
+										</Button>
+									</Property>
+									<Property label="Palette">
+										<Select
+											value={m.palette ?? ""}
+											title="A palette laid over the drawing's colours: the same drawing as another map"
+											options={[{ value: "", label: "The drawing's own" }, ...(m.palette && !pals.some((p) => p.ref === m.palette) ? [{ value: m.palette, label: m.palette }] : []), ...pals.map((p) => ({ value: p.ref, label: p.label }))]}
+											onChange={(v) => api.map(i, name, { palette: v })}
+										/>
+									</Property>
+									<Property label="State" title="Which of the drawing's states; empty for its first">
+										<TextField value={m.state ?? ""} placeholder="first" onChange={(v) => api.map(i, name, { state: v })} />
+									</Property>
+									</>
+								)}
 								<Property label="Mode" title="Paint: its colours over the token; mask: the token times its value">
 									<SegmentedControl<"paint" | "mask">
 										label="Mode"

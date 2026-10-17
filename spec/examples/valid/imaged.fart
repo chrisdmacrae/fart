@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "space": "3d",
+  "name": "imaged",
+  "palette": [
+    {
+      "name": "wood",
+      "rgb": [255, 255, 255, 255]
+    }
+  ],
+  "textures": [
+    {
+      "name": "imaged",
+      "cell": [8, 8],
+      "maps": {
+        "color": {
+          "image": "textures/imaged.color.png"
+        },
+        "normal": {
+          "image": "textures/imaged.normal.png"
+        },
+        "rough": {
+          "image": "textures/imaged.color.png",
+          "mode": "mask",
+          "soften": 0.5
+        }
+      }
+    }
+  ],
+  "parts": [
+    {
+      "name": "box",
+      "pivot": [0, 0, 0],
+      "shapes": [
+        {
+          "kind": "mesh",
+          "color": "wood",
+          "texture": "imaged",
+          "points": [[-4, -4, -4], [4, -4, -4], [-4, 4, -4], [4, 4, -4], [-4, -4, 4], [4, -4, 4], [-4, 4, 4], [4, 4, 4]],
+          "faces": [[2, 3, 1, 0], [4, 5, 7, 6], [0, 1, 5, 4], [6, 7, 3, 2], [4, 6, 2, 0], [1, 3, 7, 5]],
+          "mapping": {
+            "uvs": [
+              [[0, 8], [8, 8], [8, 0], [0, 0]],
+              [[0, 8], [8, 8], [8, 0], [0, 0]],
+              [[0, 8], [8, 8], [8, 0], [0, 0]],
+              [[0, 8], [8, 8], [8, 0], [0, 0]],
+              [[0, 8], [8, 8], [8, 0], [0, 0]],
+              [[0, 8], [8, 8], [8, 0], [0, 0]]
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

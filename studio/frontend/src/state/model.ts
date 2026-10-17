@@ -1428,8 +1428,9 @@ export function setMap(i: number, map: string, patch: Partial<TextureMap>) {
 export function addMap(i: number, map: string) {
 	const t = textures()[i];
 	if (!t || !map || t.maps[map]) return;
-	const ref = t.maps.color?.ref ?? Object.values(t.maps)[0]?.ref ?? "";
-	mutate((d) => (d.textures![i].maps[map] = { ref }));
+	// the same drawing (or picture, 1.12) as the colour map, for another palette or another reading
+	const from = t.maps.color ?? Object.values(t.maps)[0];
+	mutate((d) => (d.textures![i].maps[map] = from?.image !== undefined ? { image: from.image } : { ref: from?.ref ?? "" }));
 }
 export function deleteMap(i: number, map: string) {
 	const t = textures()[i];

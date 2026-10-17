@@ -47,3 +47,23 @@ like another show up.
 `drawList`, `sampleClip`, `sampleTargets`, `solveTargets`, `clipEvents`,
 `blendPoses`, `layerPoses`, `attachXf`, `shapesOf`, `anchorsOf`,
 `clipDuration`, `solveChain`, `bakeTris`, `stringifyDoc`.
+
+**Collision** (2D): `collision_world(&doc, poses, &out)` gives every
+collision shape in document space for a pose (`Collider`: kind, points
+or centre and radius, `layer`, `part`); `destroy_colliders` frees them.
+TypeScript: `collisionWorld(doc, poses)`.
+
+**3D, textures, the sidecar, skins**: `load_bytes_3d` and the `_3d`
+calls, `resolve_textures_3d` (a map's drawing, or an image map's pixels
+on `Map_Doc.pixels`, 1.12), `load_sidecar` + `flatten_part_sidecar`
+(1.8), and what the loader does with skins (1.9: rigid, for now) are in
+`references/curves-and-3d.md`, "Loading in a 3D game".
+
+**Scenes**: `load_scene` and `flatten_scene` (`shart.odin`; TypeScript
+`loadScene`, `flattenScene`) are in `references/scenes.md`.
+
+**A copy in a game**: the loader is copied into a game as package
+`fastart`. After updating the checkout, copy `loaders/odin/*.odin`
+over the game's copy: an older loader skips what it does not know (a
+loader older than 1.12 draws a shape with an image map flat).
+

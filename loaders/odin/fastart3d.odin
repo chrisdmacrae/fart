@@ -17,7 +17,11 @@ package fastart
 // gen.odin makes the meshes (as_mesh); sidecar.odin reads them ready-made
 // from a compiled sidecar (`name.fart.glb`) when a build left a fresh one.
 
+import "core:bytes"
 import "core:encoding/json"
+import "core:image"
+import "core:image/png"
+import "core:mem"
 import "core:math"
 import "core:math/linalg"
 
@@ -100,9 +104,10 @@ Mapping3 :: struct {
 	uvs:   [dynamic][dynamic]V2,
 }
 
-// 1.5: one map of a texture: a drawing (a 2D .fart, by relative path), tiled.
+// 1.5: one map of a texture: a drawing (a 2D .fart, by relative path), tiled; 1.12: or a PNG stretched over the cell.
 Texture_Map :: struct {
 	ref:     string,
+	image:   string, // 1.12: a PNG by relative path instead of a drawing; "" for a drawing
 	palette: string, // a palette file laid over the drawing's tokens; "" for none
 	state:   string, // which of the drawing's states; "" for its first
 	mode:    string, // "paint" (default) | "mask"
@@ -246,10 +251,14 @@ Doc3 :: struct {
 }
 
 // 1.5: a map's drawing, read and ready to draw: the 2D document, the pose to draw, its tokens resolved (the map's palette laid over).
+// 1.12: an image map's pixels instead (doc is empty): 8-bit RGBA, straight, row 0 at the cell's top.
 Map_Doc :: struct {
-	tmap:  Texture_Map,
-	doc:   Doc,
-	state: string, // the state to draw, or "" for every part
+	tmap:   Texture_Map,
+	doc:    Doc,
+	state:  string, // the state to draw, or "" for every part
+	pixels: []u8, // 1.12: width × height × 4; nil for a drawing
+	width:  int,
+	height: int,
 }
 
 // Does the document say space: "3d"? (Cheap: the raw tree, no unmarshal.)
@@ -318,6 +327,10 @@ resolve_textures_3d :: proc(doc: ^Doc3, resolver: Resolver, user: rawptr) {
 	for &t in doc.textures {
 		by_map := make(map[string]Map_Doc)
 		for name, m in t.maps {
+			if m.image != "" {
+				if md, iok := load_map_image(m, resolver, user); iok do by_map[name] = md
+				continue
+			}
 			data, ok := resolver(m.ref, user)
 			if !ok do continue
 			d, dok := load_bytes(data)
@@ -334,6 +347,26 @@ resolve_textures_3d :: proc(doc: ^Doc3, resolver: Resolver, user: rawptr) {
 		}
 		doc.texture_docs[t.name] = by_map
 	}
+}
+
+// 1.12: an image map's PNG as 8-bit RGBA, whatever its colour type and depth (16 bits keep their high byte).
+load_map_image :: proc(m: Texture_Map, resolver: Resolver, user: rawptr) -> (Map_Doc, bool) {
+	data, ok := resolver(m.image, user)
+	if !ok do return {}, false
+	img, err := png.load_from_bytes(data, {.alpha_add_if_missing})
+	if err != nil || img == nil do return {}, false
+	defer image.destroy(img)
+	n := img.width * img.height
+	if img.channels != 4 || n == 0 do return {}, false
+	out := make([]u8, n * 4)
+	raw := bytes.buffer_to_bytes(&img.pixels)
+	if img.depth == 16 {
+		wide := mem.slice_data_cast([]u16, raw)
+		for i in 0 ..< n * 4 do out[i] = u8(wide[i] >> 8)
+	} else if img.depth == 8 {
+		copy(out, raw)
+	} else do return {}, false
+	return Map_Doc{tmap = m, pixels = out, width = img.width, height = img.height}, true
 }
 
 texture_of_3d :: proc(doc: ^Doc3, name: string) -> ^Texture {
