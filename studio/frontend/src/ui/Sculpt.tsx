@@ -23,7 +23,7 @@ export function SculptSection() {
 	const held = masked ? masked.reduce((n, v) => n + (v > 0.5 ? 1 : 0), 0) : 0;
 	const pts = sh && sh.kind === "mesh" ? sh.points.length : 0;
 	return (
-		<InspectorSection title="Sculpt" hint="shape the mesh like clay: drag over it with a brush. ⌘ turns the brush the other way, ⇧ smooths, F sizes it, ⇧F sets its strength; a drag off the mesh orbits" tail={b.label}>
+		<InspectorSection title="Sculpt" hint="shape the mesh like clay: drag over it with a brush. ⌘ turns the brush the other way, ⇧ smooths, F sizes it, ⇧F sets its strength; orbit with two fingers, the middle button or ⌥-drag" tail={b.label}>
 			{GROUPS.map((g) => (
 				<Property key={g} label={g === "Add / subtract" ? "Add" : g === "Smooth / flatten" ? "Smooth" : g} title={g}>
 					<div class="insp-actions">

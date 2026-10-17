@@ -229,15 +229,53 @@ try {
 	await wait();
 	check("undo takes Subdivide back", (await ev(() => fastart.md.doc.value.parts[0].shapes[0].faces.length)) === faces0);
 
-	// ------------------------------------------------------------- 8. a drag off the mesh orbits
+	// ------------------------------------------------------------- 8. a press off the mesh: no orbit, a stroke once it gets there (a trackpad's click sculpts)
 	const turn0 = await ev(() => fastart.md.turn.value.join(","));
 	await page.mouse.move(box0.x + 40, box0.y + 40);
 	await page.mouse.down();
 	await page.mouse.move(box0.x + 140, box0.y + 60, { steps: 6 });
 	await page.mouse.up();
 	await wait();
-	check("a drag off the mesh orbits", (await ev(() => fastart.md.turn.value.join(","))) !== turn0);
+	check("a drag off the mesh does not orbit", (await ev(() => fastart.md.turn.value.join(","))) === turn0);
 	check("and sculpts nothing", moved(await pts(), p0) === 0);
+	{
+		const inside = await onPage([0, 0, -5]);
+		// from the canvas's left edge, well off the ball, across onto it
+		const left = [box0.x + 20, inside[1]];
+		await page.mouse.move(left[0], left[1]);
+		await page.mouse.down();
+		await page.mouse.move(inside[0], inside[1], { steps: 20 });
+		await page.mouse.up();
+		await wait();
+		check("a drag begun off the mesh sculpts once it reaches it", moved(await pts(), p0) > 3);
+		check("as one undo step", await ev(() => fastart.md.canUndo.value));
+		await page.keyboard.press("Control+z");
+		await wait();
+		check("which takes it all back", moved(await pts(), p0) === 0);
+	}
+	await page.keyboard.down("Alt");
+	await page.mouse.move(box0.x + 40, box0.y + 40);
+	await page.mouse.down();
+	await page.mouse.move(box0.x + 140, box0.y + 60, { steps: 6 });
+	await page.mouse.up();
+	await page.keyboard.up("Alt");
+	await wait();
+	check("⌥-drag orbits", (await ev(() => fastart.md.turn.value.join(","))) !== turn0);
+	check("and sculpts nothing", moved(await pts(), p0) === 0);
+	await ev(() => fastart.model.setView("front"));
+	await wait(200);
+	// a mesh wound inside out (as imports often are) still takes a stroke, outward
+	await ev(() => fastart.model.mutate((d) => (d.parts[0].shapes[0].faces = d.parts[0].shapes[0].faces.map((f) => [...f].reverse()))));
+	await wait();
+	await stroke([-2, -1, -5], [2, 1, -5]);
+	const pIn = await pts();
+	const outIn = pIn.filter((p, i) => radiusOf(p) > radiusOf(p0[i]) + 1e-3).length;
+	const inIn = pIn.filter((p, i) => radiusOf(p) < radiusOf(p0[i]) - 1e-3).length;
+	check("an inside-out mesh sculpts, outward", outIn > 3 && inIn === 0, `${outIn} out, ${inIn} in`);
+	await page.keyboard.press("Control+z");
+	await page.keyboard.press("Control+z");
+	await wait();
+	check("and undoes back to the ball", moved(await pts(), p0) === 0 && (await ev(() => JSON.stringify(fastart.md.doc.value.parts[0].shapes[0].faces[0]))) === JSON.stringify(shape.faces[0]));
 
 	// ------------------------------------------------------------- 9. the file on disk
 	await page.keyboard.press("x");

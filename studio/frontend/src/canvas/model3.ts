@@ -498,15 +498,9 @@ export function onDown(wm: Vec2, mods: Mods) {
 		ix3.down = false;
 		return;
 	}
-	// sculpting: a press on the mesh is a stroke, anywhere else it orbits
+	// sculpting: a press is a stroke, on the mesh or on its way to it (the view orbits by the middle button, ⌥ or two fingers)
 	if (md.sculpting.value && !curClip()) {
-		if (sculptDown(wm, mods)) {
-			ix3.sculpting = true;
-			return;
-		}
-		ix3.orbiting = true;
-		ix3.orbitLast = wm;
-		orbitStart();
+		ix3.sculpting = sculptDown(wm, mods);
 		return;
 	}
 	// a handle grabbed, or a keyed transform kept by the click

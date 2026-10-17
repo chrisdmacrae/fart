@@ -49,32 +49,55 @@ interface Adjust {
 }
 export const sculptAdjust = signal<Adjust | null>(null);
 
-export const sculptActive = () => live !== null;
+export const sculptActive = () => live !== null || waiting !== null;
 const zoom = () => view.zoom.value;
 
-/** The selected mesh's surface under a canvas point (view space), from the points given (rest space). */
-function hitOn(points: readonly V3[], faces: readonly number[][], F: Xf3, wm: Vec2): { at: Vec3; n: Vec3 } | null {
+/**
+ * The selected mesh's surface under a canvas point (view space), from
+ * the points given (rest space): the nearest face, its normal turned
+ * toward the viewer, `back` saying it was wound the other way (a mesh
+ * inside out, an open sheet seen from behind).
+ */
+function hitOn(points: readonly V3[], faces: readonly (readonly number[])[], F: Xf3, wm: Vec2): { at: Vec3; n: Vec3; back: boolean } | null {
 	const pts = points.map((p) => xf3Apply(F, p) as V3);
 	const flip = xf3Det(F) < 0;
 	const soup = soupOf(new Float64Array(soupTris(pts, flip ? faces.map((f) => [...f].reverse()) : faces)));
-	const hit = castRay(soup, [wm[0], wm[1], -1e5], [0, 0, 1], Infinity, true);
+	const o: V3 = [wm[0], wm[1], -1e5];
+	// the nearest surface is what shows, whichever way it is wound
+	const hit = castRay(soup, o, [0, 0, 1], Infinity, false);
 	if (!hit) return null;
-	return { at: [wm[0], wm[1], -1e5 + hit.t], n: triNormal(soup, hit.tri) };
+	const n = triNormal(soup, hit.tri);
+	// (z runs away from the viewer: a face looks toward the viewer when its normal's z is negative)
+	const back = n[2] > 0;
+	return { at: [wm[0], wm[1], -1e5 + hit.t], n: back ? [-n[0], -n[1], -n[2]] : n, back };
 }
 
 /** The radius in the view's units, from the pixels it is set in. */
 const viewRadius = () => sculpt.value.radius / zoom();
 
+/** A press that has not reached the mesh yet: the stroke begins where the drag first crosses it. */
+let waiting: SculptMods | null = null;
+
 /**
- * A press with sculpt mode on: over the selected mesh it begins a
- * stroke and is taken (true); anywhere else it is not, and the canvas
- * orbits instead.
+ * A press with sculpt mode on and a mesh selected is always a stroke
+ * (true), as in Blender: over the mesh it begins at once, off it it
+ * begins where the drag first reaches the mesh. The view orbits by the
+ * middle button, ⌥-drag or two fingers, never by a plain press, so a
+ * trackpad's click sculpts. False when there is nothing to sculpt.
  */
 export function sculptDown(wm: Vec2, mods: SculptMods): boolean {
 	if (sculptAdjust.value) {
 		sculptAdjust.value = null;
 		return true;
 	}
+	if (!md.sel.value || !sculptPoints()) return false;
+	waiting = null;
+	if (!begin(wm, mods)) waiting = mods;
+	return true;
+}
+
+/** Begin a stroke at a canvas point, when the selected mesh is under it. */
+function begin(wm: Vec2, mods: SculptMods): boolean {
 	const s = md.sel.value;
 	const fp = s ? framePartOf(s.part) : undefined;
 	const m = sculptPoints();
@@ -87,7 +110,9 @@ export function sculptDown(wm: Vec2, mods: SculptMods): boolean {
 	const kind = set.brush;
 	const toViewer = xf3ApplyDir(inv, [0, 0, -1]);
 	const l = Math.hypot(toViewer[0], toViewer[1], toViewer[2]) || 1;
-	const stroke = beginStroke(m.points, m.faces, {
+	// a mesh wound inside out where the stroke begins: its faces are taken turned over, so "out" is toward the viewer
+	const faces = hit.back ? m.faces.map((f) => [...f].reverse()) : m.faces;
+	const stroke = beginStroke(m.points, faces, {
 		brush: kind,
 		radius: viewRadius() * scale,
 		strength: strengthOf(kind) * (mods.pressure ?? 1),
@@ -111,7 +136,7 @@ function dabAt(g: Live, at: Vec2, moved: Vec2, mods: SculptMods, hit?: { at: Vec
 	const st = g.stroke;
 	st.opts.invert = !!mods.cmd;
 	if (mods.pressure !== undefined) st.opts.strength = strengthOf(st.opts.brush) * mods.pressure;
-	const h = hit === undefined ? hitOn(st.points, st.faces as number[][], g.F, at) : hit;
+	const h = hit === undefined ? hitOn(st.points, st.faces, g.F, at) : hit;
 	if (h) g.hit = h;
 	const rest = (v: Vec3) => xf3ApplyDir(g.inv, v) as V3;
 	return dab(st, {
@@ -130,6 +155,11 @@ export function sculptMove(wm: Vec2, mods: SculptMods): boolean {
 		const d = Math.hypot(wm[0] - adj.centre[0], wm[1] - adj.centre[1]) * zoom();
 		if (adj.what === "radius") setSculpt({ radius: Math.max(2, Math.round(d)) });
 		else setBrushField("strength", Math.round(Math.max(0, Math.min(1, d / 200)) * 100) / 100);
+		return true;
+	}
+	if (waiting) {
+		// the press began off the mesh: the stroke begins where the drag reaches it
+		if (begin(wm, mods)) waiting = null;
 		return true;
 	}
 	const g = live;
@@ -183,7 +213,9 @@ export function sculptMove(wm: Vec2, mods: SculptMods): boolean {
 }
 
 export function sculptUp(): boolean {
-	if (!live) return false;
+	const was = waiting;
+	waiting = null;
+	if (!live) return !!was;
 	live = null;
 	endGesture();
 	return true;
@@ -271,7 +303,7 @@ export function sculptStatus(): string | null {
 	const set = sculpt.value;
 	const b = brushInfo(set.brush);
 	const sym = ["X", "Y", "Z"].filter((_, i) => set.mirror[i]).join("") || "";
-	return `Sculpt · ${b.label}: ${b.hint} · radius ${set.radius}px, strength ${strengthOf()}${sym ? ` · symmetry ${sym}` : ""}${set.radial > 1 ? ` · radial ×${set.radial}` : ""} · ⇧ smooths · F radius, ⇧F strength · Esc leaves`;
+	return `Sculpt · ${b.label}: ${b.hint} · radius ${set.radius}px, strength ${strengthOf()}${sym ? ` · symmetry ${sym}` : ""}${set.radial > 1 ? ` · radial ×${set.radial}` : ""} · ⇧ smooths · F radius, ⇧F strength · two fingers or ⌥-drag orbit · Esc leaves`;
 }
 
 /**

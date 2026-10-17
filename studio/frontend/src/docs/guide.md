@@ -705,8 +705,10 @@ pointer instead of moving corners one by one. Select a mesh and press
 The inspector's Sculpt section has every setting.
 
 - **A stroke** is a drag over the mesh: one undo step, written into the
-  file as it goes (under Deform, into this state's morph). A drag off
-  the mesh orbits. Hold ⌘ to turn the brush the other way (Draw pushes
+  file as it goes (under Deform, into this state's morph). A click or a
+  press always sculpts, a trackpad's too: one begun off the mesh starts
+  where the drag reaches it. Orbit with two fingers on a trackpad, the
+  middle button, or ⌥-drag. Hold ⌘ to turn the brush the other way (Draw pushes
   in, Inflate deflates, Pinch magnifies, Flatten makes contrast, Fill
   deepens), hold Shift to smooth with any brush. A pen's pressure is the
   strength.
