@@ -392,7 +392,9 @@ terminal, `studio --serve some/dir` does the same without a window.
 ## Textures
 
 A texture is a set of maps, and every map is a drawing: a 2D file of
-the project tiled over a **cell**. There are no bitmaps. In the
+the project tiled over a **cell**; or (format 1.12) a **picture**, a PNG
+stretched over the cell, for art painted elsewhere. A picture map shows
+its path where a drawing map has its drawing, palette and state. In the
 inspector's **Textures** section give a texture a name, its cell, and
 its maps: the **color** map is what is painted; a **height**, **glow**
 or any other map is the same idea for the game to read (grey levels
@@ -516,13 +518,15 @@ the same four regions with the model turned under a **view**.
   coordinates keep three decimals, so scale a small model up).
   **Merge into one part** drops the rig; **A shape per material** is
   for readers older than format 1.8. A file of the same name is replaced
-  only after asking. Textures, cameras and lights are not imported, and
+  only after asking. Cameras and lights are not imported, nor are
+  textures here (the command line below brings them, as picture maps), and
   a skin is flattened: each face rides the joint that holds most of it.
   For a cage you mean to edit, export without applying subdivision and
   set **smooth** here. A model dropped on the window opens the same
   sheet, and the command line does the same:
 
       npx fart import helm.glb --height 24
+      npx fart import stick.glb --map color=albedo.png --map normal=normal.png
 - **Deform** (D) in the path bar makes corner drags reshape the
   part *in the current state only*: a morph (format 1.6) the clips lerp
   between keys. The part's row says **morph**, the inspector counts the

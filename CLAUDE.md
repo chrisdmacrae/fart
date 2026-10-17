@@ -116,6 +116,14 @@ follow the spec, never the other way round.
   `state/textures.ts` renders the normal map, `canvas/gl3.ts` lights by
   it per pixel (the pattern's axes ride in each vertex), the textures
   panel has Relief and Soften, the model inspector Unwrap and Box map.
+- Images (1.12): a texture map may be `image` (a PNG, stretched over the
+  cell) instead of `ref`; a map named `normal` is a tangent-space normal
+  map. Core reads PNGs itself (`png.ts`: `fromPng` with its own inflate;
+  `textures.ts` samples a picture where it rasterises a drawing);
+  `fart import --map name=file.png` (or a glTF's own PNGs) writes them
+  beside the document with the uvs as `mapping.uvs` (`gltfImport.ts`
+  `textures` option, `gltfImages`); the studio reads them through
+  `shell.readImage`; the Odin loader's `load_map_image` (`Map_Doc.pixels`).
 - Mesh editing in the model screen: `frontend/src/state/meshops.ts` is
   the geometry (pure, no imports: extrude, inset, loop cut, rims, merge,
   flip, wind outward, creases; every result says where each point and

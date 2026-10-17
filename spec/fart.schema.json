@@ -40,7 +40,7 @@
     },
     "textures": {
       "type": "array",
-      "description": "Since 1.5: textures, each a set of maps that are drawings tiled over a cell. See FORMAT.md, Textures.",
+      "description": "Since 1.5: textures, each a set of maps that are drawings (since 1.12, or PNGs) tiled over a cell. See FORMAT.md, Textures and Images.",
       "items": {
         "$ref": "#/$defs/texture"
       }
@@ -1621,12 +1621,21 @@
     },
     "texture_map": {
       "type": "object",
-      "required": [
-        "ref"
+      "oneOf": [
+        {"properties": {"ref": true}, "required": ["ref"], "not": {"properties": {"image": true}, "required": ["image"]}},
+        {"properties": {"image": true}, "required": ["image"], "not": {"anyOf": [
+          {"properties": {"ref": true}, "required": ["ref"]},
+          {"properties": {"palette": true}, "required": ["palette"]},
+          {"properties": {"state": true}, "required": ["state"]}
+        ]}}
       ],
       "properties": {
         "ref": {
           "$ref": "#/$defs/relpath"
+        },
+        "image": {
+          "$ref": "#/$defs/relpath",
+          "description": "Since 1.12: a PNG stretched over the cell, instead of a drawing. See FORMAT.md, Images."
         },
         "palette": {
           "$ref": "#/$defs/relpath"

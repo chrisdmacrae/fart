@@ -74,7 +74,8 @@ third coordinate. Model props once, then project them to the 2D views a
 - **Import** a model made elsewhere (Blender's own glTF export, no
   plugin): `npx fart import model.glb [-o model.fart] [--scale n]
   [--height n] [--merge] [--split-materials] [--no-quads]
-  [--no-shades]`, or `importGltf(bytes, options)` from `@fastart/core`
+  [--no-shades] [--map name=file.png]... [--textures dir]
+  [--no-textures]`, or `importGltf(bytes, options)` from `@fastart/core`
   (`gltfBufferUris` lists the `.bin` files a `.gltf` wants in
   `options.buffers`). A part per mesh node (snake_case names, the
   node's origin as `pivot`, the nearest mesh node above as `parent`),
@@ -82,8 +83,10 @@ third coordinate. Model props once, then project them to the 2D views a
   mesh with `colors` + `paint` (1.8) unless `--split-materials`,
   triangles paired into quads, split vertices welded, `normals:
   "smooth"` where the source shades smooth, vertex colours as `shades`,
-  animations as clips, morph targets as states. It prints what it left
-  out (textures, cameras, lights; a skin becomes rigid parts) and
+  animations as clips, morph targets as states, and (1.12) the
+  textures: the glTF's PNGs, or the ones `--map` names, as image maps
+  with the uvs as `mapping.uvs` (see `textures.md`, Images). It prints
+  what it left out (cameras, lights, JPEG pictures) and
   refuses compressed geometry. A Blender model is in metres: pass
   `--height` or `--scale` so three decimals keep its detail. In Uranus:
   File › Import glTF… (⌘I), or the `import_gltf` tool.

@@ -89,7 +89,7 @@ const SPACES = ["2d", "3d"];
 const KNOWN_TOP = ["version", "space", "name", "palette_refs", "palette", "parts", "states", "clips", "constraints", "collision", "textures", "meta", "resolved"];
 const TEXTURE_FIELDS = ["texture", "mapping"];
 const KNOWN_TEXTURE = ["name", "cell", "maps", "relief"];
-const KNOWN_MAP = ["ref", "palette", "state", "mode", "soften"];
+const KNOWN_MAP = ["ref", "image", "palette", "state", "mode", "soften"];
 const KNOWN_MAPPING2 = ["at", "angle", "scale", "xf"];
 const KNOWN_MAPPING3 = ["scale", "uvs"];
 const RESERVED_TOP: string[] = [];
@@ -496,7 +496,7 @@ function checkTextureFields(ctx: Ctx, sh: Obj, path: string, dim: 2 | 3, faces: 
 	}
 }
 
-/** 1.5: a texture: a name, a cell, at least one map with a relative ref. */
+/** 1.5: a texture: a name, a cell, at least one map with a relative ref (or, 1.12, image). */
 function checkTexture(ctx: Ctx, t: unknown, path: string): { name: string | null; refs: string[] } {
 	const refs: string[] = [];
 	if (!ctx.object(t, path)) return { name: null, refs };
@@ -511,7 +511,12 @@ function checkTexture(ctx: Ctx, t: unknown, path: string): { name: string | null
 			if (!k) ctx.err("schema", mp, "a map's name is not empty");
 			const m = t.maps[k];
 			if (!ctx.object(m, mp)) continue;
-			if (!("ref" in m)) ctx.err("schema", `${mp}/ref`, "a map names a drawing: a relative path");
+			// a drawing (ref) or, since 1.12, a picture (image): one of the two
+			if ("ref" in m && "image" in m) ctx.err("schema", mp, "a map is a drawing (ref) or a picture (image), not both");
+			else if ("image" in m) {
+				if (ctx.name(m.image, `${mp}/image`) && isAbsolutePath(m.image)) ctx.err("path", `${mp}/image`, "a map's image is relative to this file, never absolute");
+				for (const k of ["palette", "state"]) if (k in m) ctx.err("schema", `${mp}/${k}`, `${k} is a drawing's; an image map has none`);
+			} else if (!("ref" in m)) ctx.err("schema", `${mp}/ref`, "a map names a drawing (ref) or a PNG (image): a relative path");
 			else if (ctx.name(m.ref, `${mp}/ref`)) {
 				if (isAbsolutePath(m.ref)) ctx.err("path", `${mp}/ref`, "a map's ref is relative to this file, never absolute");
 				else refs.push(m.ref);

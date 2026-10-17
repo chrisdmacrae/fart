@@ -1,11 +1,12 @@
 # Textures
 
-Read this when a shape needs a pattern: textures are drawings tiled over a cell (1.5).
+Read this when a shape needs a pattern: textures are drawings tiled over a cell (1.5), or pictures (1.12).
 
 ## Textures
 
-No bitmaps: a texture is a set of **maps** and every map is a 2D `.fart`
-tiled over a `cell`, in 2D and 3D alike.
+A texture is a set of **maps** and every map is a 2D `.fart` tiled over
+a `cell`, in 2D and 3D alike; or (1.12) a PNG, for art painted
+elsewhere (see **Images** below). Author new patterns as drawings.
 
 ```json
 "textures": [{"name": "planks", "cell": [8, 8], "maps": {
@@ -37,3 +38,35 @@ tiled over a `cell`, in 2D and 3D alike.
   the cell for 0..1) and `resolve_textures_3d` reads the maps' drawings;
   the raylib example rasterises one with `draw_2d`. Sample textures:
   `examples/cabin/textures`, `examples/space/textures`.
+
+## Images (1.12)
+
+A map may name a PNG instead of a drawing: `{"image": "textures/stick.color.png"}`
+(relative, never with `ref`, `palette` or `state`; `mode` and `soften`
+still apply). The picture stretches over the cell whatever its pixel
+count, row 0 at the top (pattern v runs down, as glTF's does); a cell
+the picture's size in pixels makes pattern coordinates pixels. A map
+named `normal` is a tangent-space normal map (red +u, green up the
+image), lit by and baked as given; it wins over a relief.
+
+```json
+"textures": [{"name": "stick", "cell": [512, 512], "maps": {
+  "color":  {"image": "textures/stick.color.png"},
+  "normal": {"image": "textures/stick.normal.png"},
+  "mask":   {"image": "textures/stick.mask.png"}}}]
+```
+
+- `npx fart import model.glb --map color=albedo.png --map normal=n.png
+  --map mask=m.png` writes the pictures to `textures/` beside the
+  document and the meshes' glTF uvs as `mapping.uvs` (`--textures dir`
+  moves them; `--no-textures` leaves them out). Without `--map` the
+  glTF's own PNGs come in, a texture per material: colour, normal,
+  metal-roughness split into `rough` and `metal`, occlusion as `ao`,
+  emission as `glow`. A JPEG is named in a warning: convert it to PNG
+  and pass it with `--map`.
+- A palette swap cannot reach into a picture: for a recolourable model
+  use `"mode": "mask"` over a light token.
+- Core reads PNGs itself (`fromPng`, `resolveTextures(..., readBytes)`);
+  `fart bake --textures` and `fart gltf` keep a picture's own size
+  unless `--px` says otherwise. The Odin loader puts the pixels on
+  `Map_Doc.pixels` (8-bit RGBA, `width` × `height`).

@@ -43,8 +43,10 @@ export interface TextureFields3 {
 }
 /** Since 1.5: one map of a texture: a drawing, tiled. */
 export interface TextureMap {
-	/** a relative path to a 2D art file */
-	ref: string;
+	/** a relative path to a 2D art file; absent on an image map */
+	ref?: string;
+	/** Since 1.12: a relative path to a PNG stretched over the cell, instead of a drawing */
+	image?: string;
 	/** a relative path to a palette file laid over the drawing's tokens */
 	palette?: string;
 	/** which of the drawing's states to draw; absent: the first, else every part */

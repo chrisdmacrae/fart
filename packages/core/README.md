@@ -39,4 +39,7 @@ boxes expanded, layers set; `hullPart` / `setHull` / `convexHull` derive
 hulls (`fart hull`). Textures (1.5): `resolveTextures`, `rasterizeMap`,
 `rasterValues`, `textureColor`, `mappingXf`, `boxUV`, `meshUVs`,
 `affineFrom`, `toPng` (`fart bake --textures`); flattened triangles
-carry `uvs` and a `texture` name.
+carry `uvs` and a `texture` name. Images (1.12): `fromPng` (any PNG to
+RGBA, its own inflate), `pngSize`, `imagePx`; `resolveTextures` takes a
+bytes reader for image maps; `importGltf`'s `textures` option and
+`gltfImages` (`fart import --map name=file.png`).

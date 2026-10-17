@@ -79,13 +79,21 @@ draw_2d :: proc(doc: ^fart.Doc, state: string, k: f32) {
 }
 
 // A texture's colour map as a GPU texture: one cell, drawn three times
-// across so shapes that cross the cell's edge wrap, then cropped.
+// across so shapes that cross the cell's edge wrap, then cropped; or
+// (1.12) the map's picture, uploaded as it is.
 rasterize_color_map :: proc(doc: ^fart.Doc3, name: string) -> (rl.Texture2D, bool) {
 	tex := fart.texture_of_3d(doc, name)
 	maps, has := doc.texture_docs[name]
 	if tex == nil || !has do return {}, false
 	color, hc := maps["color"]
 	if !hc do return {}, false
+	// 1.12: a picture is already pixels; it fills the cell whatever its size
+	if color.pixels != nil {
+		img := rl.Image{data = raw_data(color.pixels), width = i32(color.width), height = i32(color.height), mipmaps = 1, format = .UNCOMPRESSED_R8G8B8A8}
+		gpu := rl.LoadTextureFromImage(img)
+		rl.SetTextureWrap(gpu, .REPEAT)
+		return gpu, true
+	}
 	w, h := i32(tex.cell.x * TEX_PX), i32(tex.cell.y * TEX_PX)
 	rt := rl.LoadRenderTexture(w, h)
 	rl.BeginTextureMode(rt)

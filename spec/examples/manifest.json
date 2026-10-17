@@ -853,6 +853,30 @@
       "space": "3d",
       "code": "schema",
       "note": "a rail without a profile"
+    },
+    {
+      "file": "valid/imaged.fart",
+      "valid": true,
+      "space": "3d",
+      "note": "1.12: a box wearing pictures: an RGB colour map filtered by row, a one-bit palette normal map, the colour picture again as a softened mask read as roughness"
+    },
+    {
+      "file": "invalid/image-absolute.fart",
+      "valid": false,
+      "code": "path",
+      "note": "a map's image is relative"
+    },
+    {
+      "file": "invalid/image-and-ref.fart",
+      "valid": false,
+      "code": "schema",
+      "note": "a map is a drawing or a picture, not both"
+    },
+    {
+      "file": "invalid/image-palette.fart",
+      "valid": false,
+      "code": "schema",
+      "note": "a palette is a drawing's; an image map has none"
     }
   ],
   "shart_codes": {

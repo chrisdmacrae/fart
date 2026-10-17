@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "textures": [
+    {
+      "name": "t",
+      "cell": [
+        1,
+        1
+      ],
+      "maps": {
+        "color": {
+          "image": "/crate.png"
+        }
+      }
+    }
+  ]
+}
