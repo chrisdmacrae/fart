@@ -59,6 +59,8 @@ tris index the points) is checked by the validator in `packages/core`:
     npx fart validate camp.shart                          # a scene, checked with its files in hand
     npx fart flatten camp.shart --t 0.5                   # a scene's instances, placed: what a renderer draws
     npx fart build art/                                   # the compiled sidecar name.fart.glb of every 3D file (1.8)
+    npx fart render hero.fart --clip walk                 # a clip as a PNG strip with ghosts, trails and an axis gizmo
+    npx fart check-clip hero.fart --facing right          # what a clip gets wrong: stretched limbs, short-way turns, sliding feet
 
 `spec/examples/manifest.json` is the conformance corpus: files that must
 load, files that must be refused, and the error code each refusal

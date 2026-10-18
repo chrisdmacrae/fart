@@ -188,8 +188,23 @@ Cheapest first; most work needs only the first three steps.
    unknown fields are yours to judge.
 6. Look at it: `render` in Uranus (a state, a clip at a time, or
    `sheet: "states"` / `sheet: "clip"` for one image of everything), or
-   `make serve DIR=/path/to/art` and `http://localhost:4747`.
-7. Use it in the game (references/loaders.md). Ignore `*.fart~` files:
+   `make serve DIR=/path/to/art` and `http://localhost:4747`. On disk,
+   `npx fart render <file>` draws every state side by side and
+   `npx fart render <file> --clip walk` a clip as a strip of frames in
+   one world box: the frame before as a blue ghost, the paths of the
+   chains' ends (or `--track part/anchor`) with arrows, and a gizmo
+   saying which way +x, +y (down) and a positive turn (clockwise) go,
+   and in 3D where the model's front (−z) is. `--view right` for a 3D
+   gait, `--onion` for one overlaid image, `--bones` for the skeleton,
+   `--facing right` to draw which way a 2D figure faces.
+7. **Check every clip you write or change**: `npx fart check-clip
+   <file> [--clip walk] [--facing right]` measures what a picture hides:
+   a limb that changes length, a turn that tweens the short way (so it
+   swings backwards), a snap between frames, a knee or elbow folding the
+   other way, a loop that pops at its seam, feet that slide or sink
+   while down, and which way the figure travels. Fix every error; read
+   each warning against the strip.
+8. Use it in the game (references/loaders.md). Ignore `*.fart~` files:
    they are the studio's checkpoints (gitignore them).
 
 ## References
@@ -233,6 +248,15 @@ and the note.
   leave it out (or set it to the pivot).
 - A child's pivot should sit at the joint, on the parent, so turning it
   reads as articulation.
+- Animate a limb by `rotate` alone: an `offset` or `scale` on a part in
+  a chain stretches it. A turn of more than π between two keys tweens
+  the short way, the other direction: put a key between. A looping clip
+  ends on its first key's state.
+- Directions: y grows down, so a positive `rotate` turns clockwise on
+  screen; a 3D model faces −z. A walk in place slides its planted feet
+  backwards: facing right, they move toward −x.
+- Give feet, paws and hands an anchor (`foot_l`, `paw`, `hand`): render
+  trails them and check-clip finds the ground by them.
 - A state that leaves a part out hides it; a clip key with `parts`
   must list every part that should show at that moment.
 - `palette_refs` paths are relative to the file that names them

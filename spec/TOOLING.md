@@ -113,7 +113,17 @@ that touches the format, and `FORMAT.md` is 11.4k.
    curves sections as files the skill names and the agent reads when
    the task needs them, the way skills are meant to disclose.
 7. **A contact sheet from `render`.** One PNG with every state, or a
-   clip's frames in a row, so one call shows a whole file.
+   clip's frames in a row, so one call shows a whole file. On the
+   command line, `fart render` (`motion.ts`, `render.ts`) draws the
+   strip in one world box with the overlays that answer "which way?":
+   the frame before as a ghost, the chains' ends' paths with arrows, an
+   axis gizmo (+y down, a positive turn clockwise, a 3D model's front at
+   −z). Pictures alone did not stop agents writing limbs that stretch,
+   arms that swing the long way round, or a walk that moonwalks, so
+   `fart check-clip` (`clipcheck.ts`) says those in numbers: bone
+   lengths against rest, key-to-key turns past π, snaps, knees folding
+   the other way, the loop's seam, and the feet: when they are down, how
+   they slide, and which way that sends the figure.
 8. **Measure.** `fart tokens <file>` for the numbers, and an evaluation
    set of ten real tasks ("give the dog a blink clip", "widen the
    fighter's wings in the thrust state") run through Claude Code before
