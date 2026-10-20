@@ -15,7 +15,7 @@
 #   make check-keys posing a clip's keys on the canvas (the rig, a key's own pose, keys made between keys), 2D and 3D, the same way
 #   make check-surface format 1.8 in the model screen (paint, modifiers, shades, pipes, compiled sidecars and their tools), the same way
 #   make validate DIR=path/to/art   fart validate
-#   make skill      install the fastart skill for Claude Code (~/.claude/skills)
+#   make skill      install the fastart skill for Claude Code (~/.claude/skills) and Codex / ChatGPT desktop (~/.agents/skills)
 
 SHELL := /bin/sh
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
@@ -121,11 +121,17 @@ validate: node_modules
 	node packages/core/src/cli.ts validate $(DIR)
 
 # the skill names this checkout, so agents in other projects find the tools
+# Claude Code reads ~/.claude/skills; Codex and the ChatGPT desktop app read ~/.agents/skills
+SKILL_DIRS ?= $(HOME)/.claude/skills $(HOME)/.agents/skills
 skill:
-	mkdir -p $(HOME)/.claude/skills/fastart/references
-	sed 's#{{FASTART}}#$(CURDIR)#g' skills/fastart/SKILL.md > $(HOME)/.claude/skills/fastart/SKILL.md
-	for f in skills/fastart/references/*.md; do sed 's#{{FASTART}}#$(CURDIR)#g' $$f > $(HOME)/.claude/skills/fastart/references/$$(basename $$f); done
-	@echo "installed ~/.claude/skills/fastart (run again after pulling)"
+	for d in $(SKILL_DIRS); do \
+	  mkdir -p $$d/fastart/references $$d/fastart/agents; \
+	  sed 's#{{FASTART}}#$(CURDIR)#g' skills/fastart/SKILL.md > $$d/fastart/SKILL.md; \
+	  for f in skills/fastart/references/*.md; do sed 's#{{FASTART}}#$(CURDIR)#g' $$f > $$d/fastart/references/$$(basename $$f); done; \
+	  cp skills/fastart/agents/openai.yaml $$d/fastart/agents/; \
+	  echo "installed $$d/fastart"; \
+	done
+	@echo "(run again after pulling)"
 
 clean:
 	rm -rf studio/bin studio/frontend/dist packages/core/dist

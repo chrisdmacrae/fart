@@ -1,0 +1,8 @@
+# Codex and ChatGPT read this beside SKILL.md (UI metadata only; the
+# skill itself is SKILL.md). Claude Code ignores it.
+interface:
+  display_name: "fastart"
+  short_description: "Write, check, render and load .fart art and .shart scenes"
+  default_prompt: "Make or edit .fart art with the fastart skill"
+policy:
+  allow_implicit_invocation: true
