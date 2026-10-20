@@ -19,6 +19,13 @@ recoloured in a tree. The format is the contract; the checkout at
 `examples/cabin`, with scenes in `examples/space/scenes` and
 `examples/cabin/camp.shart`).
 
+The skill works in any agent that reads `SKILL.md` (Claude Code, Codex,
+the ChatGPT desktop app); `make skill` installs it for them with the
+checkout's path filled in. If the paths here still begin with a
+placeholder in double braces, the skill was copied by hand: clone
+`github.com/chrisdmacrae/fart`, run `npm install` there, and read each
+placeholder as that checkout.
+
 - The truth: `{{FASTART}}/spec/FORMAT.md` (read it when in doubt) and
   `{{FASTART}}/spec/fart.schema.json`.
 - A complete sample project: `{{FASTART}}/examples/space` (ships, a
@@ -211,8 +218,9 @@ Longer sections, read when the task needs them:
 
 ## Inside Uranus
 
-When the `uranus` tools are present (mcp__uranus__*), you are in the
-studio's Ask panel and the user is looking at the canvas. Work through
+When the Uranus MCP server's tools are present (`get_document`,
+`apply_document`, `render`, …, under whatever prefix your client gives
+them: `mcp__uranus__*` in Claude Code), you are in the studio's Ask panel and the user is looking at the canvas. Work through
 the editor, not the file system:
 
 1. `get_document`: the open file, what is selected, which state or clip
