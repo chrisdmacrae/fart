@@ -72,6 +72,13 @@ follow the spec, never the other way round.
   `@fastart/make` (`packages/make`) kept in `assets/gen/` and rerun by
   Uranus (meta.gen → Regenerate), `stringifyDoc` writes inline number
   arrays (`fart fmt` reformats), `fart tokens` measures.
+- Seeing motion without a window: `fart render` (core's `motion.ts`
+  samples a clip with targets reached; `render.ts` is a software
+  rasteriser: a strip in one world box, ghosts, trails, the axis gizmo;
+  `--frames-dir`, `--mp4` through ffmpeg) and `fart check-clip`
+  (`clipcheck.ts`: bone lengths, short-way turns, snaps, knee flips,
+  loop seams, feet sliding and travel direction); both in
+  `motionCmd.ts`, tested by `test/motion.test.ts`.
 - Art direction (`spec/DIRECTION.md`): `style.gas` at a project's
   root (`core/direction.ts`: merge, `extends`, `classes`, the fixed
   checks, `lintDirection`); `fart lint`, `fart new --class`, the

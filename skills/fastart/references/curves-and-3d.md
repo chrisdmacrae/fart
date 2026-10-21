@@ -69,6 +69,14 @@ third coordinate. Model props once, then project them to the 2D views a
   (`hammer@1`) and the clip subdivides at 12 fps. `left` is the
   side-scroller profile (muzzle right), `top` the top-down sprite (muzzle
   up). `spec/PROJECT.md` has the rules.
+- **Clips in 3D**: `fart render model.fart --clip walk --view right`
+  draws a gait from the side (the gizmo shows the axes as the view
+  turns them and the model's FRONT, −z); `fart check-clip` measures it
+  as in 2D, with the feet sliding in x/z and travel judged against −z.
+  A skinned rig (1.9) whose joints carry no shapes still renders, but
+  give each paw or foot joint an anchor at the sole (`paw_fl`, `foot_l`)
+  so its path is drawn and the feet are checked. Quaternion tweens go
+  the short way: a key-to-key turn near π is flagged.
 - **Export** for other engines: `npx fart gltf model.fart` writes a
   `.glb` (a node per part, vertex colours, an animation per clip, y-up).
 - **Import** a model made elsewhere (Blender's own glTF export, no

@@ -28,3 +28,6 @@ export * from "./direction.ts";
 export * from "./mods.ts";
 export * from "./gltfImport.ts";
 export * from "./unwrap.ts";
+export * from "./motion.ts";
+export * from "./render.ts";
+export * from "./clipcheck.ts";

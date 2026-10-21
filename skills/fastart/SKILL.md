@@ -195,9 +195,49 @@ Cheapest first; most work needs only the first three steps.
    unknown fields are yours to judge.
 6. Look at it: `render` in Uranus (a state, a clip at a time, or
    `sheet: "states"` / `sheet: "clip"` for one image of everything), or
+   `npx fart render <file>` for every state side by side on disk, or
    `make serve DIR=/path/to/art` and `http://localhost:4747`.
-7. Use it in the game (references/loaders.md). Ignore `*.fart~` files:
+7. **Clips: render and check every one you write or change**, as in
+   Animating, below.
+8. Use it in the game (references/loaders.md). Ignore `*.fart~` files:
    they are the studio's checkpoints (gitignore them).
+
+## Animating
+
+Pictures and numbers of a clip, no window needed. From any project,
+`fart` is `node {{FASTART}}/packages/core/src/cli.ts` (or `npx fart`
+where `@fastart/core` is installed).
+
+1. `fart outline <file>`: the clips, their keys and states.
+2. Edit the states and keys (patch, verbs or a generator).
+3. `fart check-clip <file> --clip walk [--facing right]`: what a
+   picture hides, one line each. **bone**/**scale**: a limb changes
+   length (an `offset` or `scale` on a chain part). **wrap**: a turn of
+   more than π between keys tweens the short way, backwards (put a key
+   between). **snap**: a jump between frames. **flip**/**bend**: a knee
+   or elbow folds the other way. **seam**: a loop's last key is not its
+   first pose. **slide**: feet sliding, skating or sinking while down.
+   **travel**: which way the feet send the figure (`--facing` makes a
+   moonwalk an error; a 3D model travelling +z walks backwards). Exit 1
+   on any error; fix them all, judge the warnings against the strip.
+4. `fart render <file> --clip walk -o walk.png`, then **read the PNG**:
+   a strip of frames in one world box (the figure moves, the frame does
+   not), the frame before as a blue ghost, the chains' ends' paths (or
+   `--track part/anchor`) with arrows, and a legend with the gizmo: +x,
+   +y down, R+ (a positive turn, clockwise), and in 3D the model's
+   FRONT (−z). `--bones` draws the skeleton, `--onion` lays every frame
+   over one image (blue early, red late), `--view right` is a 3D gait
+   from the side, `--keys` draws just the keys, `--facing right` draws
+   a 2D figure's front.
+5. Repeat 2–4 until check-clip is clean and the strip reads right.
+
+For people: `--mp4 walk.mp4 --fps 30` writes a video (needs ffmpeg;
+`--plain` drops the overlays), `--frames-dir out/` one PNG a frame.
+To document a clip: the strip (`-o`), the onion (`--onion -o`), and
+`check-clip --clip walk` (text, or `--json` for data). Feet are found
+by anchors named like `foot`, `toe`, `heel`, `paw` or by the chains'
+ends; a rig without them gets no foot check (`--contact part/anchor`
+names them).
 
 ## References
 
@@ -241,6 +281,15 @@ and the note.
   leave it out (or set it to the pivot).
 - A child's pivot should sit at the joint, on the parent, so turning it
   reads as articulation.
+- Animate a limb by `rotate` alone: an `offset` or `scale` on a part in
+  a chain stretches it. A turn of more than π between two keys tweens
+  the short way, the other direction: put a key between. A looping clip
+  ends on its first key's state.
+- Directions: y grows down, so a positive `rotate` turns clockwise on
+  screen; a 3D model faces −z. A walk in place slides its planted feet
+  backwards: facing right, they move toward −x.
+- Give feet, paws and hands an anchor (`foot_l`, `paw`, `hand`): render
+  trails them and check-clip finds the ground by them.
 - A state that leaves a part out hides it; a clip key with `parts`
   must list every part that should show at that moment.
 - `palette_refs` paths are relative to the file that names them

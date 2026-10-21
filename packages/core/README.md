@@ -31,6 +31,8 @@ The command line:
     fart build art/                  # 1.8: the compiled sidecar name.fart.glb beside every 3D file
     fart unwrap bag.fart             # 1.10: uvs packed into the texture's cell
     fart import stick.glb --map color=albedo.png --map normal=normal.png   # a glTF as a .fart, textures as image maps (1.12)
+    fart render hero.fart --clip walk --bones   # a clip as a PNG strip: ghosts, trails, axes (--onion, --frames-dir, --mp4)
+    fart check-clip hero.fart --facing right    # stretched limbs, short-way turns, snaps, flipped knees, seams, sliding feet
 
 `fart` with no arguments lists every command and its flags.
 

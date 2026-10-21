@@ -12,6 +12,8 @@
 //   fart unwrap <3d.fart> [--part name]... [--texture name]   uvs for every textured mesh: box-projected islands packed into the cell (1.10)
 //   fart flatten <scene.shart> [--t s]             a scene's instances with their world maps (shart 1.0)
 //   fart import <model.glb|.gltf> [-o out.fart]    a glTF as a 3D .fart (see importCmd.ts for the flags)
+//   fart render <file> [--clip name] [-o out.png]  a clip as a strip of frames with ghosts, trails and axes; states side by side
+//   fart check-clip <file> [--clip name]           limbs that stretch, short-way turns, snaps, flipped knees, seams, sliding feet
 //
 // validate takes .shart files too: a scene is checked with its files in hand.
 //
@@ -38,6 +40,7 @@ import { flattenScene, loadScene, parseScene, refInfo, sceneFiles } from "./scen
 import { toPng } from "./png.ts";
 import { unwrapDoc } from "./unwrap.ts";
 import { IMPORT_USAGE, importCmd } from "./importCmd.ts";
+import { CHECK_CLIP_USAGE, RENDER_USAGE, checkClipCmd, renderCmd } from "./motionCmd.ts";
 import { deflateSync } from "node:zlib";
 
 /** PNGs the command line writes are compressed (the library's own writer stores) */
@@ -398,6 +401,8 @@ const USAGE = `usage: fart validate <file|dir>...
        fart unwrap <3d.fart> [--part name]... [--texture name] [--margin m]   uvs for textured meshes: box-projected islands packed into the cell, in place
        fart flatten <scene.shart> [--t s]       a scene's instances, placed
        ${IMPORT_USAGE}
+       ${RENDER_USAGE}
+       ${CHECK_CLIP_USAGE}
        fart project <3d.fart> [--view name|x,y,z(deg)]... [--light x,y,z] [--ambient a] [--fps n] [--outline token[:w]] [-o out.fart]
          views: ${Object.keys(VIEWS).join(", ")}; several --view flags write several files (out gets -<view>)`;
 
@@ -754,6 +759,12 @@ try {
 			break;
 		case "import":
 			code = await importCmd(rest);
+			break;
+		case "render":
+			code = await renderCmd(rest);
+			break;
+		case "check-clip":
+			code = await checkClipCmd(rest);
 			break;
 		default:
 			console.log(USAGE);
